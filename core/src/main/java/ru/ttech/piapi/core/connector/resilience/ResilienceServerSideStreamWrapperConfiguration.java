@@ -1,5 +1,6 @@
 package ru.ttech.piapi.core.connector.resilience;
 
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.streaming.ServerSideStreamConfiguration;
 import ru.ttech.piapi.core.connector.streaming.ServerSideStreamWrapper;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
@@ -19,8 +20,10 @@ import java.util.function.Function;
  */
 public abstract class ResilienceServerSideStreamWrapperConfiguration<ReqT, RespT> {
 
+  @Getter
   protected final ScheduledExecutorService executorService;
   protected final List<OnNextListener<RespT>> onResponseListeners;
+  @Getter
   protected final List<Runnable> onConnectListeners;
 
   protected ResilienceServerSideStreamWrapperConfiguration(
@@ -31,14 +34,6 @@ public abstract class ResilienceServerSideStreamWrapperConfiguration<ReqT, RespT
     this.executorService =  executorService;
     this.onResponseListeners = onResponseListeners;
     this.onConnectListeners = onConnectListeners;
-  }
-
-  public ScheduledExecutorService getExecutorService() {
-    return executorService;
-  }
-
-  public List<Runnable> getOnConnectListeners() {
-    return onConnectListeners;
   }
 
   public abstract Function<ReqT, ServerSideStreamConfiguration.Builder<?, ReqT, RespT>> getConfigurationBuilder(int pingDelay);

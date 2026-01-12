@@ -1,20 +1,25 @@
 package ru.ttech.piapi.core.connector.streaming;
 
 import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
 import io.grpc.stub.AbstractAsyncStub;
 import lombok.Getter;
 import ru.ttech.piapi.core.connector.ServiceStubFactory;
+import ru.ttech.piapi.core.connector.internal.ErrorHubReportInterceptor;
 import ru.ttech.piapi.core.connector.internal.LoggingDebugInterceptor;
 import ru.ttech.piapi.core.connector.resilience.ResilienceServerSideStreamWrapper;
 import ru.ttech.piapi.core.connector.resilience.ResilienceServerSideStreamWrapperConfiguration;
 import ru.ttech.piapi.core.impl.marketdata.MarketDataStreamConfiguration;
 import ru.ttech.piapi.core.impl.marketdata.MarketDataStreamWrapper;
 import ru.ttech.piapi.core.impl.marketdata.MarketDataStreamWrapperConfiguration;
+import ru.ttech.piapi.core.impl.operations.OperationsStreamWrapperConfiguration;
 import ru.ttech.piapi.core.impl.operations.PortfolioStreamWrapperConfiguration;
 import ru.ttech.piapi.core.impl.operations.PositionsStreamWrapperConfiguration;
 import ru.ttech.piapi.core.impl.orders.OrderStateStreamWrapperConfiguration;
 import ru.ttech.piapi.core.impl.orders.TradeStreamWrapperConfiguration;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -64,6 +69,7 @@ public class StreamServiceStubFactory {
    *                      <ul>
    *                      <li>{@link PortfolioStreamWrapperConfiguration}</li>
    *                      <li>{@link PositionsStreamWrapperConfiguration}</li>
+   *                      <li>{@link OperationsStreamWrapperConfiguration}</li>
    *                      <li>{@link OrderStateStreamWrapperConfiguration}</li>
    *                      <li>{@link TradeStreamWrapperConfiguration}</li>
    *                      </ul>
@@ -105,9 +111,12 @@ public class StreamServiceStubFactory {
 
   private <S extends AbstractAsyncStub<S>> S createStub(Function<Channel, S> stubConstructor) {
     var stub = stubConstructor.apply(serviceStubFactory.getChannel());
+    String targetUrl = serviceStubFactory.getTargetUrl();
+    List<ClientInterceptor> interceptors = new ArrayList<>();
+    interceptors.add(new ErrorHubReportInterceptor(targetUrl));
     if (serviceStubFactory.getConfiguration().isGrpcDebug()) {
-      stub = stub.withInterceptors(new LoggingDebugInterceptor());
+      interceptors.add(new LoggingDebugInterceptor());
     }
-    return stub;
+    return stub.withInterceptors(interceptors.toArray(new ClientInterceptor[0]));
   }
 }

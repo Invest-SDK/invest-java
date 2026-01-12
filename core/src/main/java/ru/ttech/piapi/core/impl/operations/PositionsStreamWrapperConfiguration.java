@@ -65,7 +65,7 @@ public class PositionsStreamWrapperConfiguration extends ResilienceServerSideStr
    *       .build();
    * }</pre>
    *
-   * @param executorService поток для проверки состояния соединения
+   * @param executorService планировщик для проверки состояния соединения
    * @return Билдер конфигурации обёртки над стримом
    */
   public static Builder builder(ScheduledExecutorService executorService) {

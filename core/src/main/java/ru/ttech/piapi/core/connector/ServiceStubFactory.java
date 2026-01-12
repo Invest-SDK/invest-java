@@ -1,6 +1,7 @@
 package ru.ttech.piapi.core.connector;
 
 import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
@@ -10,11 +11,14 @@ import io.grpc.stub.AbstractBlockingStub;
 import io.grpc.stub.AbstractStub;
 import io.grpc.stub.MetadataUtils;
 import io.vavr.Lazy;
+import ru.ttech.piapi.core.connector.internal.ErrorHubReportInterceptor;
 import ru.ttech.piapi.core.connector.internal.LoggingDebugInterceptor;
 import ru.ttech.piapi.core.connector.resilience.ResilienceAsyncStubWrapper;
 import ru.ttech.piapi.core.connector.resilience.ResilienceConfiguration;
 import ru.ttech.piapi.core.connector.resilience.ResilienceSyncStubWrapper;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -112,29 +116,40 @@ public class ServiceStubFactory {
     return supplier.get();
   }
 
+  public String getTargetUrl() {
+    return chooseTargetUrl(configuration);
+  }
+
   public ConnectorConfiguration getConfiguration() {
     return configuration;
   }
 
   private <S extends AbstractStub<S>> S createStub(Function<Channel, S> stubConstructor) {
     var stub = stubConstructor.apply(supplier.get());
+    String targetUrl = chooseTargetUrl(configuration);
+    List<ClientInterceptor> interceptors = new ArrayList<>();
+    interceptors.add(new ErrorHubReportInterceptor(targetUrl));
     if (configuration.isGrpcDebug()) {
-      stub = stub.withInterceptors(new LoggingDebugInterceptor());
+      interceptors.add(new LoggingDebugInterceptor());
     }
-    return stub;
+    return stub.withInterceptors(interceptors.toArray(new ClientInterceptor[0]));
   }
 
   static ServiceStubFactory create(ConnectorConfiguration configuration, Supplier<ManagedChannel> supplier) {
     return new ServiceStubFactory(configuration, supplier);
   }
 
+  static String chooseTargetUrl(ConnectorConfiguration configuration) {
+    return configuration.isSandboxEnabled()
+      ? configuration.getSandboxTargetUrl()
+      : configuration.getTargetUrl();
+  }
+
   private static ManagedChannel createChannel(ConnectorConfiguration configuration) {
     var headers = new Metadata();
     addAuthHeader(headers, configuration.getToken());
     addAppNameHeader(headers, configuration.getAppName());
-    String targetUrl = configuration.isSandboxEnabled()
-      ? configuration.getSandboxTargetUrl()
-      : configuration.getTargetUrl();
+    String targetUrl = chooseTargetUrl(configuration);
     return NettyChannelBuilder
       .forTarget(targetUrl)
       .intercept(MetadataUtils.newAttachHeadersInterceptor(headers))
