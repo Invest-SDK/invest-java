@@ -11,6 +11,7 @@ import io.grpc.stub.AbstractBlockingStub;
 import io.grpc.stub.AbstractStub;
 import io.grpc.stub.MetadataUtils;
 import io.vavr.Lazy;
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.internal.ErrorHubReportInterceptor;
 import ru.ttech.piapi.core.connector.internal.LoggingDebugInterceptor;
 import ru.ttech.piapi.core.connector.resilience.ResilienceAsyncStubWrapper;
@@ -29,6 +30,7 @@ import java.util.function.Supplier;
  */
 public class ServiceStubFactory {
 
+  @Getter
   private final ConnectorConfiguration configuration;
   private final Supplier<ManagedChannel> supplier;
 
@@ -118,10 +120,6 @@ public class ServiceStubFactory {
 
   public String getTargetUrl() {
     return chooseTargetUrl(configuration);
-  }
-
-  public ConnectorConfiguration getConfiguration() {
-    return configuration;
   }
 
   private <S extends AbstractStub<S>> S createStub(Function<Channel, S> stubConstructor) {

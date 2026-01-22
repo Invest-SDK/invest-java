@@ -42,12 +42,12 @@ public class PositionsStreamWrapperConfiguration extends ResilienceServerSideStr
       if (response.hasSubscriptions()) {
         var successSubscriptionsList = response.getSubscriptions().getAccountsList().stream()
           .filter(subscription -> subscription.getSubscriptionStatus() == PositionsAccountSubscriptionStatus.POSITIONS_SUBSCRIPTION_STATUS_SUCCESS)
-          .collect(Collectors.toList());
+          .toList();
         if (!successSubscriptionsList.isEmpty()) {
           var filteredRequest = request.getAccountsList().size() == successSubscriptionsList.size()
             ? request
             : PositionsStreamRequest.newBuilder(request).clearAccounts()
-            .addAllAccounts(successSubscriptionsList.stream().map(PositionsSubscriptionStatus::getAccountId).collect(Collectors.toList()))
+            .addAllAccounts(successSubscriptionsList.stream().map(PositionsSubscriptionStatus::getAccountId).toList())
             .build();
           return Optional.of(filteredRequest);
         }

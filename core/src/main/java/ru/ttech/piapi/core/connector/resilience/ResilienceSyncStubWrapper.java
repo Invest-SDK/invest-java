@@ -3,6 +3,7 @@ package ru.ttech.piapi.core.connector.resilience;
 import io.github.resilience4j.decorators.Decorators;
 import io.grpc.MethodDescriptor;
 import io.grpc.stub.AbstractBlockingStub;
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.SyncStubWrapper;
 
 import java.util.function.Function;
@@ -12,6 +13,7 @@ import java.util.function.Function;
  */
 public class ResilienceSyncStubWrapper<S extends AbstractBlockingStub<S>> {
 
+  @Getter
   private final SyncStubWrapper<S> syncStubWrapper;
   private final ResilienceConfiguration resilienceConfiguration;
 
@@ -46,12 +48,4 @@ public class ResilienceSyncStubWrapper<S extends AbstractBlockingStub<S>> {
       .get();
   }
 
-  /**
-   * Метод для получния обёртки {@link SyncStubWrapper}
-   *
-   * @return Синхронная обёртка над gRPC сервисом
-   */
-  public SyncStubWrapper<S> getSyncStubWrapper() {
-    return syncStubWrapper;
-  }
 }

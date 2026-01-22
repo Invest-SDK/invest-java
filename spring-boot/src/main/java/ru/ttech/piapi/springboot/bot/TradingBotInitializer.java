@@ -39,6 +39,8 @@ public class TradingBotInitializer implements InitializingBean {
           .setWarmupLength(tradingBot.getWarmupLength())
           .setStrategyEnterAction(tradingBot::onStrategyEnterAction)
           .setStrategyExitAction(tradingBot::onStrategyExitAction)
+          .setStrategyEnterActionSeries(tradingBot::onStrategyEnterAction)
+          .setStrategyExitActionSeries(tradingBot::onStrategyExitAction)
           .build());
       strategy.run();
       strategies.add(strategy);

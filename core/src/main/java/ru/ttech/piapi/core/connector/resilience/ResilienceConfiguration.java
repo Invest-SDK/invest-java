@@ -14,6 +14,7 @@ import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.ConnectorConfiguration;
 import ru.ttech.piapi.core.connector.exception.ServiceRuntimeException;
 
@@ -39,6 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class ResilienceConfiguration {
 
+  @Getter
   private final ScheduledExecutorService executorService;
   private final RetryRegistry retryRegistry;
   private final CircuitBreakerRegistry circuitBreakerRegistry;
@@ -57,10 +59,6 @@ public class ResilienceConfiguration {
     this.circuitBreakerRegistry = circuitBreakerRegistry;
     this.rateLimiterRegistry = rateLimiterRegistry;
     this.bulkheadRegistry = bulkheadRegistry;
-  }
-
-  public ScheduledExecutorService getExecutorService() {
-    return executorService;
   }
 
   public Retry getRetryForMethod(MethodDescriptor<?, ?> method) {
@@ -274,8 +272,7 @@ public class ResilienceConfiguration {
     }
 
     private boolean isRetryableException(Throwable throwable) {
-      if (throwable instanceof ServiceRuntimeException) {
-        var exception = (ServiceRuntimeException) throwable;
+      if (throwable instanceof ServiceRuntimeException exception) {
         Status status = exception.getErrorStatus();
         return status.getCode() == Status.Code.RESOURCE_EXHAUSTED || status.getCode() == Status.Code.UNAVAILABLE
           || status.getCode() == Status.Code.INTERNAL && exception.parseErrorCode() == 70001;

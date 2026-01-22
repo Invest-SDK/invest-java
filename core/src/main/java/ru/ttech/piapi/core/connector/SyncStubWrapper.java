@@ -1,6 +1,7 @@
 package ru.ttech.piapi.core.connector;
 
 import io.grpc.stub.AbstractBlockingStub;
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.exception.ServiceRuntimeException;
 
 import java.util.function.Function;
@@ -8,21 +9,13 @@ import java.util.function.Function;
 /**
  * Обёртка для работы с синхронными gRPC стабами
  */
+@Getter
 public class SyncStubWrapper<S extends AbstractBlockingStub<S>> {
 
   private final S stub;
 
   SyncStubWrapper(S stub) {
     this.stub = stub;
-  }
-
-  /**
-   * Метод для прямого получения gRPC стаба
-   *
-   * @return gRPC стаб
-   */
-  public S getStub() {
-    return stub;
   }
 
   /**

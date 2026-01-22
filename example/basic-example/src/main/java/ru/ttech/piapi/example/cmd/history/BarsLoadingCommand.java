@@ -1,6 +1,5 @@
 package ru.ttech.piapi.example.cmd.history;
 
-import io.vavr.Tuple;
 import picocli.CommandLine;
 import ru.tinkoff.piapi.contract.v1.CandleInterval;
 import ru.ttech.piapi.example.cmd.MainCommand;
@@ -8,7 +7,7 @@ import ru.ttech.piapi.example.cmd.strategy.AvailableCandleIntervals;
 import ru.ttech.piapi.example.strategy.backtest.BarsLoadingExample;
 
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Map;
 
 @CommandLine.Command(
   name = "history-bars",
@@ -41,6 +40,6 @@ public class BarsLoadingCommand implements Runnable {
   @Override
   public void run() {
     var barsLoader = new BarsLoadingExample();
-    barsLoader.loadBars(parent.getConfiguration(), List.of(Tuple.of(instrumentId, candleInterval)), from);
+    barsLoader.loadBars(parent.getConfiguration(), Map.of(instrumentId, candleInterval), from);
   }
 }

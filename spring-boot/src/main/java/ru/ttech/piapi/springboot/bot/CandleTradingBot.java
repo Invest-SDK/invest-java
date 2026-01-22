@@ -20,4 +20,8 @@ public interface CandleTradingBot {
   void onStrategyEnterAction(CandleInstrument instrument, Bar bar);
 
   void onStrategyExitAction(CandleInstrument instrument, Bar bar);
+
+  default void onStrategyEnterAction(CandleInstrument instrument, BarSeries barSeries) {}
+
+  default void onStrategyExitAction(CandleInstrument instrument, BarSeries barSeries) {}
 }

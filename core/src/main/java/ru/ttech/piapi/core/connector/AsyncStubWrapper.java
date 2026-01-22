@@ -4,6 +4,7 @@ import io.grpc.Context;
 import io.grpc.stub.AbstractAsyncStub;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.exception.ServiceRuntimeException;
 
 import javax.annotation.Nullable;
@@ -16,20 +17,12 @@ import java.util.function.BiConsumer;
 public class AsyncStubWrapper<S extends AbstractAsyncStub<S>> {
 
   private final boolean contextFork;
+  @Getter
   private final S stub;
 
   AsyncStubWrapper(S stub, boolean contextFork) {
     this.stub = stub;
     this.contextFork = contextFork;
-  }
-
-  /**
-   * Метод для прямого получения gRPC стаба
-   *
-   * @return gRPC стаб
-   */
-  public S getStub() {
-    return stub;
   }
 
   /**

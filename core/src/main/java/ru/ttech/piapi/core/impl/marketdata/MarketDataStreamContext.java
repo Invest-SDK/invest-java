@@ -33,6 +33,7 @@ public class MarketDataStreamContext {
   private final BlockingQueue<OrderBookWrapper> orderBooksQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<TradingStatusWrapper> tradingStatusesQueue = new LinkedBlockingQueue<>();
 
+  @SuppressWarnings("ResultOfMethodCallIgnored")
   public MarketDataStreamContext() {
     this.globalOnCandleListener = candleQueue::offer;
     this.globalOnLastPriceListener = lastPriceQueue::offer;

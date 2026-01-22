@@ -35,20 +35,34 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <maven.compiler.release>11</maven.compiler.release>
-        <jackson.version>2.18.3</jackson.version>
-        <io.grpc.version>1.71.0</io.grpc.version>
-        <com.google.protobuf.version>3.25.5</com.google.protobuf.version>
-        <io.github.resilience4j.version>1.7.1</io.github.resilience4j.version>
-        <org.projectlombok.version>1.18.30</org.projectlombok.version>
-        <org.junit.jupiter.version>5.11.4</org.junit.jupiter.version>
-        <org.assertj.version>3.27.3</org.assertj.version>
-        <ch.qos.logback.version>1.5.16</ch.qos.logback.version>
-        <org.slf4j.version>2.0.16</org.slf4j.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.release>17</maven.compiler.release>
+        <jackson.version>3.0.3</jackson.version>
+        <io.grpc.version>1.78.0</io.grpc.version>
+        <protobuf.version>4.31.1</protobuf.version>
+        <picocli.version>4.7.7</picocli.version>
+        <io.github.resilience4j.version>2.3.0</io.github.resilience4j.version>
+        <org.projectlombok.version>1.18.42</org.projectlombok.version>
+        <ch.qos.logback.version>1.5.25</ch.qos.logback.version>
+        <org.slf4j.version>2.0.17</org.slf4j.version>
+        <org.postgresql.version>42.7.9</org.postgresql.version>
+        <com.mysql.connector.version>9.5.0</com.mysql.connector.version>
+        <sentry.version>8.30.0</sentry.version>
+        <org.apache.commons.csv>1.14.1</org.apache.commons.csv>
+        <org.ta4j.version>0.22.1</org.ta4j.version>
+        <vavr.version>0.11.0</vavr.version>
+        <org.apache.commons.compress.version>1.28.0</org.apache.commons.compress.version>
+        <com.squareup.okhttp3.version>4.12.0</com.squareup.okhttp3.version>
+        <org.springframework.boot.version>3.3.13</org.springframework.boot.version>
+
+        <!--   test dependencies versions   -->
+        <org.junit.jupiter.version>5.14.2</org.junit.jupiter.version>
         <org.testcontainers.version>1.20.6</org.testcontainers.version>
         <org.awaitility.version>4.3.0</org.awaitility.version>
+        <org.assertj.version>3.27.6</org.assertj.version>
+        <grpc-mock.version>0.16.0</grpc-mock.version>
+        <mockito.version>5.21.0</mockito.version>
     </properties>
 
     <modules>

@@ -6,7 +6,7 @@ import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeriesBuilder;
 import org.ta4j.core.Strategy;
-import org.ta4j.core.num.DecimalNum;
+import org.ta4j.core.num.DecimalNumFactory;
 import ru.tinkoff.piapi.contract.v1.CandleInstrument;
 import ru.tinkoff.piapi.contract.v1.GetCandlesRequest;
 
@@ -24,16 +24,16 @@ public class CandleStrategyConfiguration {
   private final int warmupLength;
   private final Map<CandleInstrument, Strategy> strategiesMap;
   private final Map<CandleInstrument, BarSeries> barSeriesMap;
-  private final BiConsumer<CandleInstrument, Bar> enterAction;
-  private final BiConsumer<CandleInstrument, Bar> exitAction;
+  private final BiConsumer<CandleInstrument, BarSeries> enterAction;
+  private final BiConsumer<CandleInstrument, BarSeries> exitAction;
 
   private CandleStrategyConfiguration(
     GetCandlesRequest.CandleSource candleSource,
     int warmupLength,
     Map<CandleInstrument, Strategy> strategiesMap,
     Map<CandleInstrument, BarSeries> barSeriesMap,
-    BiConsumer<CandleInstrument, Bar> enterAction,
-    BiConsumer<CandleInstrument, Bar> exitAction
+    BiConsumer<CandleInstrument, BarSeries> enterAction,
+    BiConsumer<CandleInstrument, BarSeries> exitAction
   ) {
     this.candleSource = candleSource;
     this.warmupLength = warmupLength;
@@ -59,11 +59,11 @@ public class CandleStrategyConfiguration {
     return barSeriesMap;
   }
 
-  public BiConsumer<CandleInstrument, Bar> getEnterAction() {
+  public BiConsumer<CandleInstrument, BarSeries> getEnterAction() {
     return enterAction;
   }
 
-  public BiConsumer<CandleInstrument, Bar> getExitAction() {
+  public BiConsumer<CandleInstrument, BarSeries> getExitAction() {
     return exitAction;
   }
 
@@ -112,7 +112,9 @@ public class CandleStrategyConfiguration {
     private int warmupLength;
     private Map<CandleInstrument, Function<BarSeries, Strategy>> strategyConstructors;
     private BiConsumer<CandleInstrument, Bar> enterAction;
+    private BiConsumer<CandleInstrument, BarSeries> enterActionSeries;
     private BiConsumer<CandleInstrument, Bar> exitAction;
+    private BiConsumer<CandleInstrument, BarSeries> exitActionSeries;
 
     /**
      * Установка источника свечей
@@ -175,6 +177,24 @@ public class CandleStrategyConfiguration {
     }
 
     /**
+     * Установка действия при сигнале на вход по стратегии на конкретном инструменте
+     *
+     * @param entryActionSeries {@link BiConsumer} в котором доступны инструмент ({@link CandleInstrument})
+     *                                            и свечи по нему ({@link BarSeries})
+     *                     <pre>{@code
+     *                          (candleInstrument, barSeries) ->
+     *                                 logger.info("Entering by strategy for instrument {} with interval {}",
+     *                                             candleInstrument.getInstrumentId(),
+     *                                             candleInstrument.getInterval())
+     *                    }</pre>
+     * @return Билдер конфигурации стратегии
+     */
+    public Builder setStrategyEnterActionSeries(BiConsumer<CandleInstrument, BarSeries> entryActionSeries) {
+      this.enterActionSeries = entryActionSeries;
+      return this;
+    }
+
+    /**
      * Установка действия при сигнале на выход по стратегии на конкретном инструменте
      *
      * @param exitAction {@link BiConsumer} в котором доступны инструмент ({@link CandleInstrument}) и свеча ({@link Bar})
@@ -188,6 +208,24 @@ public class CandleStrategyConfiguration {
      */
     public Builder setStrategyExitAction(BiConsumer<CandleInstrument, Bar> exitAction) {
       this.exitAction = exitAction;
+      return this;
+    }
+
+    /**
+     * Установка действия при сигнале на выход по стратегии на конкретном инструменте
+     *
+     * @param exitActionSeries {@link BiConsumer} в котором доступны инструмент ({@link CandleInstrument})
+     *                                           и свечи по нему ({@link BarSeries})
+     *                   <pre>{@code
+     *                   (candleInstrument, barSeries) ->
+     *                          logger.info("Exiting by strategy for instrument {} with interval {}",
+     *                                      candleInstrument.getInstrumentId(),
+     *                                      candleInstrument.getInterval())
+     *                   }</pre>
+     * @return Билдер конфигурации стратегии
+     */
+    public Builder setStrategyExitActionSeries(BiConsumer<CandleInstrument, BarSeries> exitActionSeries) {
+      this.exitActionSeries = exitActionSeries;
       return this;
     }
 
@@ -206,15 +244,37 @@ public class CandleStrategyConfiguration {
           instrument -> (BarSeries) new BaseBarSeriesBuilder()
             .withName(instrument.getInstrumentId())
             .withMaxBarCount(warmupLength)
-            .withNumTypeOf(DecimalNum.class)
+            .withNumFactory(DecimalNumFactory.getInstance())
             .build()
           ));
       var strategiesMap = strategyConstructors.entrySet().stream()
         .map(entry -> Tuple.of(entry.getKey(), entry.getValue().apply(barSeriesMap.get(entry.getKey()))))
         .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2));
+      var enterActionConsumer = constructActionChain(enterActionSeries, enterAction);
+      var exitActionConsumer = constructActionChain(exitActionSeries, exitAction);
       return new CandleStrategyConfiguration(
-        candleSource, warmupLength, strategiesMap, barSeriesMap, enterAction, exitAction
+        candleSource, warmupLength, strategiesMap, barSeriesMap,
+        enterActionConsumer, exitActionConsumer
       );
+    }
+
+    private BiConsumer<CandleInstrument, BarSeries> constructActionChain(
+      BiConsumer<CandleInstrument, BarSeries> seriesConsumer,
+      BiConsumer<CandleInstrument, Bar> barConsumer
+    ) {
+      if (seriesConsumer == null) {
+        if (barConsumer == null) {
+          return (instrument, barSeries) -> {};
+        }
+        return (instrument, barSeries) -> barConsumer.accept(instrument, barSeries.getLastBar());
+      } else {
+        if (barConsumer == null) {
+           return seriesConsumer;
+        }
+        return seriesConsumer.andThen((instrument, barSeries) ->
+          barConsumer.accept(instrument, barSeries.getLastBar())
+        );
+      }
     }
   }
 }

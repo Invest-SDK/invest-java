@@ -4,6 +4,7 @@ import io.github.resilience4j.decorators.Decorators;
 import io.grpc.MethodDescriptor;
 import io.grpc.stub.AbstractAsyncStub;
 import io.grpc.stub.StreamObserver;
+import lombok.Getter;
 import ru.ttech.piapi.core.connector.AsyncStubWrapper;
 
 import java.util.concurrent.CompletableFuture;
@@ -14,6 +15,7 @@ import java.util.function.BiConsumer;
  */
 public class ResilienceAsyncStubWrapper<S extends AbstractAsyncStub<S>> {
 
+  @Getter
   private final AsyncStubWrapper<S> asyncStubWrapper;
   private final ResilienceConfiguration resilienceConfiguration;
 
@@ -52,12 +54,4 @@ public class ResilienceAsyncStubWrapper<S extends AbstractAsyncStub<S>> {
       .get().toCompletableFuture();
   }
 
-  /**
-   * Метод для получния обёртки {@link AsyncStubWrapper}
-   *
-   * @return Асинхронная обёртка над gRPC сервисом
-   */
-  public AsyncStubWrapper<S> getAsyncStubWrapper() {
-    return asyncStubWrapper;
-  }
 }

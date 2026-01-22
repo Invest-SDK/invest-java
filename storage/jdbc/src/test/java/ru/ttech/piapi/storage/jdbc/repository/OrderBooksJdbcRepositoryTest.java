@@ -1,6 +1,5 @@
 package ru.ttech.piapi.storage.jdbc.repository;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Timestamp;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,6 +8,7 @@ import ru.tinkoff.piapi.contract.v1.OrderBook;
 import ru.tinkoff.piapi.contract.v1.OrderBookType;
 import ru.ttech.piapi.core.helpers.NumberMapper;
 import ru.ttech.piapi.storage.jdbc.config.JdbcConfiguration;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Instant;

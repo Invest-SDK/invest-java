@@ -82,15 +82,15 @@ public class CandleStrategy {
       var strategy = configuration.getStrategiesMap().get(candleInstrument.get());
       if (strategy.shouldEnter(endIndex)) {
         try {
-          configuration.getEnterAction().accept(candleInstrument.get(), barSeries.getBar(endIndex));
+          configuration.getEnterAction().accept(candleInstrument.get(), barSeries);
         } catch (Throwable e) {
-          e.printStackTrace();
+          logger.error("Error while executing enter action", e);
         }
       } else if (strategy.shouldExit(endIndex)) {
         try {
-          configuration.getExitAction().accept(candleInstrument.get(), barSeries.getBar(endIndex));
+          configuration.getExitAction().accept(candleInstrument.get(), barSeries);
         } catch (Throwable e) {
-          e.printStackTrace();
+          logger.error("Error while executing exit action", e);
         }
       }
       logger.info("New candle was added to bar series {}", candleInstrument.get().getInstrumentId());

@@ -3,9 +3,11 @@ package ru.ttech.piapi.core.connector.exception;
 import io.grpc.Metadata;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import lombok.Getter;
 
 import java.util.Optional;
 
+@Getter
 public class ServiceRuntimeException extends RuntimeException {
 
   private static final String MESSAGE_KEY = "message";
@@ -46,28 +48,8 @@ public class ServiceRuntimeException extends RuntimeException {
     return ((StatusRuntimeException) exception).getTrailers();
   }
 
-  public Throwable getThrowable() {
-    return throwable;
-  }
-
-  public Status getErrorStatus() {
-    return errorStatus;
-  }
-
   public String getErrorCode() {
     return errorStatus.getDescription();
-  }
-
-  public String getDescription() {
-    return description;
-  }
-
-  public String getTrackingId() {
-    return trackingId;
-  }
-
-  public Metadata getMetadata() {
-    return metadata;
   }
 
   public int getRateLimitReset() {

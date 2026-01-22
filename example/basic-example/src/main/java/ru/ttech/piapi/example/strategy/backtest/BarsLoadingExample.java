@@ -1,19 +1,19 @@
 package ru.ttech.piapi.example.strategy.backtest;
 
-import io.vavr.Tuple;
-import io.vavr.Tuple2;
 import ru.tinkoff.piapi.contract.v1.CandleInterval;
 import ru.tinkoff.piapi.contract.v1.InstrumentsRequest;
 import ru.tinkoff.piapi.contract.v1.InstrumentsServiceGrpc;
 import ru.tinkoff.piapi.contract.v1.SecurityTradingStatus;
+import ru.tinkoff.piapi.contract.v1.Share;
 import ru.ttech.piapi.core.connector.ConnectorConfiguration;
 import ru.ttech.piapi.core.connector.ServiceStubFactory;
 import ru.ttech.piapi.strategy.candle.backtest.BarsLoader;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class BarsLoadingExample {
@@ -29,18 +29,17 @@ public class BarsLoadingExample {
     var instruments = response.getInstrumentsList().stream()
       .filter(share -> share.getTradingStatus() == SecurityTradingStatus.SECURITY_TRADING_STATUS_DEALER_NORMAL_TRADING
         && share.getApiTradeAvailableFlag())
-      .map(share -> Tuple.of(share.getUid(), interval))
-      .collect(Collectors.toList());
+      .map(Share::getUid)
+      .collect(Collectors.toMap(Function.identity(), key -> interval));
     barsLoader.loadBars(configuration, instruments, from);
   }
 
-  public void loadBars(ConnectorConfiguration configuration, List<Tuple2<String, CandleInterval>> instruments, LocalDate from) {
+  public void loadBars(ConnectorConfiguration configuration, Map<String, CandleInterval> instruments, LocalDate from) {
     var executorService = Executors.newCachedThreadPool();
     var barsLoader = new BarsLoader(null, configuration, executorService);
-    instruments.forEach(instrument -> {
-      CandleInterval interval = instrument._2();
-      String filename = String.format("%s_%s.csv", instrument._1(), interval.name().toLowerCase()).toLowerCase();
-      var bars = barsLoader.loadBars(instrument._1(), interval, from);
+    instruments.forEach((key, interval) -> {
+      String filename = String.format("%s_%s.csv", key, interval.name().toLowerCase()).toLowerCase();
+      var bars = barsLoader.loadBars(key, interval, from);
       barsLoader.saveBars(Path.of(filename), bars);
     });
     executorService.shutdown();

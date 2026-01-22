@@ -10,8 +10,8 @@ import org.ta4j.core.Strategy;
 import org.ta4j.core.TradingRecord;
 import org.ta4j.core.analysis.cost.LinearTransactionCostModel;
 import org.ta4j.core.backtest.TradeOnCurrentCloseModel;
-import org.ta4j.core.criteria.pnl.ProfitLossPercentageCriterion;
-import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.criteria.pnl.NetProfitLossPercentageCriterion;
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.reports.PerformanceReportGenerator;
 import org.ta4j.core.reports.PositionStatsReportGenerator;
@@ -69,7 +69,7 @@ public class ChooseBestStrategyExample {
             .filter(shortEma -> shortEma < longEmaPeriod)
             .map(shortEmaPeriod -> createSimpleStrategy(shortEmaPeriod, longEmaPeriod))
         )
-        .collect(Collectors.toList());
+        .toList();
 
     var backtest = backtestStrategyFactory.newCandleStrategyBacktest(
       CandleStrategyBacktestConfiguration.builder()
@@ -81,7 +81,7 @@ public class ChooseBestStrategyExample {
         .setTradeFeeModel(new LinearTransactionCostModel(commissionFee))
         .setExecutorService(executorService)
         .setStrategyAnalysis(barSeriesManager -> {
-          AnalysisCriterion criterion = new ProfitLossPercentageCriterion();
+          AnalysisCriterion criterion = new NetProfitLossPercentageCriterion();
           var barSeries = barSeriesManager.getBarSeries();
           var strategies = strategiesFunctions.stream()
             .map(strategy -> strategy.apply(barSeries))
@@ -112,10 +112,10 @@ public class ChooseBestStrategyExample {
   private static void printReport(Strategy strategy, TradingRecord tradingRecord, BarSeries barSeries) {
     var performanceReport = new PerformanceReportGenerator().generate(strategy, tradingRecord, barSeries);
     var positionStatsReport = new PositionStatsReportGenerator().generate(strategy, tradingRecord, barSeries);
-    logger.info("Total profit: {} rub", String.format("%.02f", performanceReport.getTotalProfit().bigDecimalValue()));
-    logger.info("Total loss: {} rub", String.format("%.02f", performanceReport.getTotalLoss().bigDecimalValue()));
-    logger.info("Total PnL: {} rub", String.format("%.02f", performanceReport.getTotalProfitLoss().bigDecimalValue()));
-    logger.info("Total PnL: {} %", String.format("%.02f", performanceReport.getTotalProfitLossPercentage().bigDecimalValue()));
+    logger.info("Total profit: {} rub", String.format("%.02f", performanceReport.totalProfit.bigDecimalValue()));
+    logger.info("Total loss: {} rub", String.format("%.02f", performanceReport.totalLoss.bigDecimalValue()));
+    logger.info("Total PnL: {} rub", String.format("%.02f", performanceReport.totalProfitLoss.bigDecimalValue()));
+    logger.info("Total PnL: {} %", String.format("%.02f", performanceReport.totalProfitLossPercentage.bigDecimalValue()));
     logger.info("Profit trades: {}", positionStatsReport.getProfitCount());
     logger.info("Loss trades: {}", positionStatsReport.getLossCount());
   }

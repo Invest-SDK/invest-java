@@ -9,8 +9,8 @@ import org.ta4j.core.Rule;
 import org.ta4j.core.Strategy;
 import org.ta4j.core.analysis.cost.LinearTransactionCostModel;
 import org.ta4j.core.backtest.TradeOnCurrentCloseModel;
-import org.ta4j.core.criteria.pnl.ProfitCriterion;
-import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.criteria.pnl.NetProfitLossCriterion;
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
 import org.ta4j.core.rules.CrossedUpIndicatorRule;
@@ -52,7 +52,7 @@ public class BacktestExample {
         .setTradeFeeModel(new LinearTransactionCostModel(0.003))
         .setExecutorService(executorService)
         .setStrategyAnalysis(barSeriesManager -> {
-          AnalysisCriterion criterion = new ProfitCriterion();
+          AnalysisCriterion criterion = new NetProfitLossCriterion();
           var barSeries = barSeriesManager.getBarSeries();
           var tradingRecord = barSeriesManager.run(tradingStrategy.apply(barSeries));
           var profit = criterion.calculate(barSeries, tradingRecord);

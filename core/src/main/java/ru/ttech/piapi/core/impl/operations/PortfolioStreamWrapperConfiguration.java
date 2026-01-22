@@ -56,12 +56,12 @@ public class PortfolioStreamWrapperConfiguration extends ResilienceServerSideStr
       if (response.hasSubscriptions()) {
         var successSubscriptionsList = response.getSubscriptions().getAccountsList().stream()
           .filter(subscription -> subscription.getSubscriptionStatus() == PortfolioSubscriptionStatus.PORTFOLIO_SUBSCRIPTION_STATUS_SUCCESS)
-          .collect(Collectors.toList());
+          .toList();
         if (!successSubscriptionsList.isEmpty()) {
           var filteredRequest = request.getAccountsList().size() == successSubscriptionsList.size()
             ? request
             : PortfolioStreamRequest.newBuilder(request).clearAccounts()
-            .addAllAccounts(successSubscriptionsList.stream().map(AccountSubscriptionStatus::getAccountId).collect(Collectors.toList()))
+            .addAllAccounts(successSubscriptionsList.stream().map(AccountSubscriptionStatus::getAccountId).toList())
             .build();
           return Optional.of(filteredRequest);
         }

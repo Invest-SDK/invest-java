@@ -1,5 +1,7 @@
 package ru.ttech.piapi.core.connector;
 
+import lombok.Getter;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -8,6 +10,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.Properties;
 
+@Getter
 public class ConnectorConfiguration {
 
   private static final String TOKEN_PROPERTY_KEY = "token";
@@ -158,69 +161,5 @@ public class ConnectorConfiguration {
     public LoadPropertiesError(Throwable cause) {
       super(cause);
     }
-  }
-
-  public String getToken() {
-    return token;
-  }
-
-  public String getAppName() {
-    return appName;
-  }
-
-  public String getTargetUrl() {
-    return targetUrl;
-  }
-
-  public String getSandboxTargetUrl() {
-    return sandboxTargetUrl;
-  }
-
-  public int getTimeout() {
-    return timeout;
-  }
-
-  public int getKeepalive() {
-    return keepalive;
-  }
-
-  public int getMaxInboundMessageSize() {
-    return maxInboundMessageSize;
-  }
-
-  public boolean isGrpcDebug() {
-    return grpcDebug;
-  }
-
-  public boolean isGrpcContextFork() {
-    return grpcContextFork;
-  }
-
-  public int getMaxAttempts() {
-    return maxAttempts;
-  }
-
-  public int getWaitDuration() {
-    return waitDuration;
-  }
-
-  public boolean isSandboxEnabled() {
-    return sandboxEnabled;
-  }
-
-  public int getMaxMarketDataStreamsCount() {
-    return maxMarketDataStreamsCount;
-  }
-
-  public int getMaxMarketDataSubscriptionsCount() {
-    return maxMarketDataSubscriptionsCount;
-  }
-
-  public int getStreamInactivityTimeout() {
-    return streamInactivityTimeout;
-  }
-
-  public int getStreamPingDelay() {
-    return streamPingDelay;
   }
 }

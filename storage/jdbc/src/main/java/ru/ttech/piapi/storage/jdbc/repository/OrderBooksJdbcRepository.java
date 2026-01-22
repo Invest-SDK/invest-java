@@ -1,16 +1,14 @@
 package ru.ttech.piapi.storage.jdbc.repository;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.tinkoff.piapi.contract.v1.Order;
 import ru.tinkoff.piapi.contract.v1.OrderBook;
 import ru.tinkoff.piapi.contract.v1.OrderBookType;
 import ru.ttech.piapi.core.helpers.NumberMapper;
 import ru.ttech.piapi.core.helpers.TimeMapper;
 import ru.ttech.piapi.storage.jdbc.config.JdbcConfiguration;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
@@ -65,7 +63,7 @@ public class OrderBooksJdbcRepository extends JdbcRepository<OrderBook> {
         .setLimitDown(NumberMapper.bigDecimalToQuotation(rs.getBigDecimal(8)))
         .setOrderBookType(OrderBookType.valueOf(rs.getString(9)))
         .build();
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new SQLException("Failed to parse JSON orders", e);
     }
   }
@@ -82,12 +80,12 @@ public class OrderBooksJdbcRepository extends JdbcRepository<OrderBook> {
       stmt.setBigDecimal(7, NumberMapper.quotationToBigDecimal(entity.getLimitUp()));
       stmt.setBigDecimal(8, NumberMapper.quotationToBigDecimal(entity.getLimitDown()));
       stmt.setString(9, entity.getOrderBookType().name());
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new SQLException("Failed to serialize orders to JSON", e);
     }
   }
 
-  private List<Order> parseOrders(String jsonOrders) throws JsonProcessingException {
+  private List<Order> parseOrders(String jsonOrders) throws JacksonException {
     if (jsonOrders == null || jsonOrders.isEmpty()) {
       return Collections.emptyList();
     }
@@ -98,7 +96,7 @@ public class OrderBooksJdbcRepository extends JdbcRepository<OrderBook> {
       .collect(Collectors.toList());
   }
 
-  private String convertOrdersToJson(List<Order> orders) throws JsonProcessingException {
+  private String convertOrdersToJson(List<Order> orders) throws JacksonException {
     List<OrderPojo> orderPojoList = orders.stream()
       .map(this::convertOrderToPojo)
       .collect(Collectors.toList());
@@ -108,8 +106,8 @@ public class OrderBooksJdbcRepository extends JdbcRepository<OrderBook> {
 
   private Order convertPojoToOrder(OrderPojo orderPojo) {
     return Order.newBuilder()
-      .setPrice(NumberMapper.bigDecimalToQuotation(orderPojo.getPrice()))
-      .setQuantity(orderPojo.getQuantity())
+      .setPrice(NumberMapper.bigDecimalToQuotation(orderPojo.price()))
+      .setQuantity(orderPojo.quantity())
       .build();
   }
 
@@ -117,26 +115,9 @@ public class OrderBooksJdbcRepository extends JdbcRepository<OrderBook> {
     return new OrderPojo(NumberMapper.quotationToBigDecimal(order.getPrice()), order.getQuantity());
   }
 
-  private static class OrderPojo {
-
-    private final BigDecimal price;
-    private final Long quantity;
-
-    @JsonCreator
-    public OrderPojo(
-      @JsonProperty("price") BigDecimal price,
-      @JsonProperty("quantity") Long quantity
-    ) {
-      this.price = price;
-      this.quantity = quantity;
-    }
-
-    public BigDecimal getPrice() {
-      return price;
-    }
-
-    public Long getQuantity() {
-      return quantity;
-    }
+  private record OrderPojo(
+    BigDecimal price,
+    Long quantity
+  ) {
   }
 }

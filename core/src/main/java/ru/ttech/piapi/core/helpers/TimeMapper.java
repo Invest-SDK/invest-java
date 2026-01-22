@@ -15,13 +15,27 @@ public class TimeMapper {
 
   private static final ZoneOffset DEFAULT_ZONE_OFFSET = ZoneOffset.UTC;
   private static final Function<Timestamp, LocalDateTime> convertToLocalDateTime =
+    val -> mapSecondsAndNanos(val.getSeconds(), val.getNanos()).atZone(DEFAULT_ZONE_OFFSET).toLocalDateTime();
+  private static final Function<Timestamp, Instant> convertToInstant =
     val -> mapSecondsAndNanos(val.getSeconds(), val.getNanos());
+
+  /**
+   * Преобразование {@link Timestamp} в {@link Instant}.
+   *
+   * @param timestamp Экземпляр google {@link Timestamp}.
+   * @return Эквивалентный {@link Instant}.
+   */
+  public static Instant timestampToInstant(Timestamp timestamp) {
+    return Optional.ofNullable(timestamp)
+      .map(convertToInstant)
+      .orElseGet(() -> convertToInstant.apply(Timestamp.getDefaultInstance()));
+  }
 
   /**
    * Преобразование {@link Timestamp} в {@link LocalDateTime}.
    *
    * @param timestamp Экземпляр google {@link Timestamp}.
-   * @return Эквивалентный {@link LocalDateTime}.
+   * @return Эквивалентный {@link LocalDateTime} в зоне UTC.
    */
   public static LocalDateTime timestampToLocalDateTime(Timestamp timestamp) {
     return Optional.ofNullable(timestamp)
@@ -44,7 +58,7 @@ public class TimeMapper {
       .orElse(Timestamp.getDefaultInstance());
   }
 
-  private static LocalDateTime mapSecondsAndNanos(long seconds, long nanos) {
-    return Instant.ofEpochSecond(seconds, nanos).atZone(DEFAULT_ZONE_OFFSET).toLocalDateTime();
+  private static Instant mapSecondsAndNanos(long seconds, long nanos) {
+    return Instant.ofEpochSecond(seconds, nanos);
   }
 }

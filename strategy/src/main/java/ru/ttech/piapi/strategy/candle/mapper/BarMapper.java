@@ -3,6 +3,7 @@ package ru.ttech.piapi.strategy.candle.mapper;
 import org.ta4j.core.Bar;
 import org.ta4j.core.BaseBar;
 import org.ta4j.core.num.DecimalNum;
+import org.ta4j.core.num.DoubleNum;
 import ru.tinkoff.piapi.contract.v1.CandleInterval;
 import ru.tinkoff.piapi.contract.v1.HistoricCandle;
 import ru.tinkoff.piapi.contract.v1.SubscriptionInterval;
@@ -19,46 +20,47 @@ import java.time.ZonedDateTime;
 public class BarMapper {
 
   public static Bar mapCandleWrapperToBar(CandleWrapper candle) {
-    var startTime = candle.getTime();
+    var startTime = candle.getTime().toInstant(ZoneOffset.UTC);
     var period = PeriodMapper.getTimePeriod(startTime, candle.getInterval());
-    var endTime = startTime.plusMinutes(period.toMinutes()).atZone(ZoneOffset.UTC);
-    return BaseBar.builder()
-      .timePeriod(period)
-      .endTime(endTime)
-      .openPrice(DecimalNum.valueOf(candle.getOpen()))
-      .closePrice(DecimalNum.valueOf(candle.getClose()))
-      .lowPrice(DecimalNum.valueOf(candle.getLow()))
-      .highPrice(DecimalNum.valueOf(candle.getHigh()))
-      .volume(DecimalNum.valueOf(candle.getVolume()))
-      .build();
+    var endTime = startTime.plus(period);
+    return new BaseBar(period, startTime, endTime,
+      DecimalNum.valueOf(candle.getOpen()),
+      DecimalNum.valueOf(candle.getHigh()),
+      DecimalNum.valueOf(candle.getLow()),
+      DecimalNum.valueOf(candle.getClose()),
+      DecimalNum.valueOf(candle.getVolume()),
+      DoubleNum.ZERO,
+      0
+    );
   }
 
   public static Bar mapHistoricCandleToBar(HistoricCandle candle, SubscriptionInterval interval) {
-    var startTime = TimeMapper.timestampToLocalDateTime(candle.getTime());
+    var startTime = TimeMapper.timestampToInstant(candle.getTime());
     var period = PeriodMapper.getTimePeriod(startTime, interval);
-    var endTime = startTime.plusMinutes(period.toMinutes()).atZone(ZoneOffset.UTC);
-    return BaseBar.builder()
-      .timePeriod(period)
-      .endTime(endTime)
-      .openPrice(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getOpen())))
-      .closePrice(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getClose())))
-      .lowPrice(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getLow())))
-      .highPrice(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getHigh())))
-      .volume(DecimalNum.valueOf(candle.getVolume()))
-      .build();
+    var endTime = startTime.plus(period);
+    return new BaseBar(period, startTime, endTime,
+      DecimalNum.valueOf(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getOpen()))),
+      DecimalNum.valueOf(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getHigh()))),
+      DecimalNum.valueOf(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getLow()))),
+      DecimalNum.valueOf(DecimalNum.valueOf(NumberMapper.quotationToBigDecimal(candle.getClose()))),
+      DecimalNum.valueOf(candle.getVolume()),
+      DoubleNum.ZERO,
+      0
+    );
   }
 
   public static Bar mapBarDataWithIntervalToBar(BarData barData, CandleInterval interval) {
     var startTime = TimeHelper.roundFloorStartTime(ZonedDateTime.parse(barData.getStartTime()), interval);
     var endTime = TimeHelper.getEndTime(startTime, interval);
-    return BaseBar.builder()
-      .endTime(endTime)
-      .timePeriod(Duration.between(startTime, endTime))
-      .openPrice(DecimalNum.valueOf(barData.getOpen()))
-      .highPrice(DecimalNum.valueOf(barData.getHigh()))
-      .lowPrice(DecimalNum.valueOf(barData.getLow()))
-      .closePrice(DecimalNum.valueOf(barData.getClose()))
-      .volume(DecimalNum.valueOf(barData.getVolume()))
-      .build();
+    var period = Duration.between(startTime, endTime);
+    return new BaseBar(period, startTime.toInstant(), endTime.toInstant(),
+      DecimalNum.valueOf(DecimalNum.valueOf(barData.getOpen())),
+      DecimalNum.valueOf(DecimalNum.valueOf(barData.getHigh())),
+      DecimalNum.valueOf(DecimalNum.valueOf(barData.getLow())),
+      DecimalNum.valueOf(DecimalNum.valueOf(barData.getClose())),
+      DecimalNum.valueOf(DecimalNum.valueOf(barData.getVolume())),
+      DoubleNum.ZERO,
+      0
+    );
   }
 }
