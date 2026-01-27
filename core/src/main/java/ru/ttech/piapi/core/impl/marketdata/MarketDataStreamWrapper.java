@@ -16,7 +16,6 @@ import ru.ttech.piapi.core.impl.marketdata.subscription.RequestAction;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataRequestUtil;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataResponseUtil;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -135,13 +134,15 @@ public class MarketDataStreamWrapper {
 
   protected MarketDataSubscriptionResult waitSubscriptionResult(
     MarketDataResponseType responseType,
-    Collection<Instrument> instruments
+    Set<Instrument> instruments
   ) {
     try {
       var subscriptionResult = subscriptionResultsQueue.poll(inactivityTimeout, TimeUnit.MILLISECONDS);
-      if (subscriptionResult == null || (subscriptionResult.getResponseType() != responseType
-        || !subscriptionResult.getSubscriptionStatusMap().keySet().containsAll(instruments))
+      if (subscriptionResult == null
+        || subscriptionResult.getResponseType() != responseType
+        || !checkSubscribedInstruments(subscriptionResult.getSubscriptionStatusMap().keySet(), instruments)
       ) {
+        logger.error("Unexpected subscription result in wrapper {}: {}", uuid, subscriptionResult);
         throw new IllegalStateException("Wrong subscription result!");
       }
       return subscriptionResult;
@@ -184,7 +185,8 @@ public class MarketDataStreamWrapper {
    * @return true, если подписка есть, false - если нет
    */
   public boolean isSubscribed(MarketDataResponseType responseType, Instrument instrument) {
-    return getSubscribedInstruments(responseType).contains(instrument);
+    return getSubscribedInstruments(responseType).stream()
+      .anyMatch(subscribedInstrument -> subscribedInstrument.subscriptionEquals(instrument));
   }
 
   protected Set<Instrument> getSubscribedInstruments(MarketDataResponseType responseType) {
@@ -210,9 +212,9 @@ public class MarketDataStreamWrapper {
       .filter(entry -> entry.getValue().isOk())
       .peek(entry -> {
         if (currentAction == RequestAction.SUBSCRIBE) {
-          logger.debug("Success subscribed in wrapper {} for instrument: {}", uuid, entry.getKey().getInstrumentUid());
+          logger.debug("Success subscribed in wrapper {} for instrument: {}", uuid, entry.getKey().getInstrumentId());
         } else if (currentAction == RequestAction.UNSUBSCRIBE) {
-          logger.debug("Success unsubscribed in wrapper {} for instrument: {}", uuid, entry.getKey().getInstrumentUid());
+          logger.debug("Success unsubscribed in wrapper {} for instrument: {}", uuid, entry.getKey().getInstrumentId());
         }
       })
       .map(Map.Entry::getKey)
@@ -249,6 +251,29 @@ public class MarketDataStreamWrapper {
         onConnectListeners.forEach(Runnable::run);
       }
     }
+  }
+
+  private boolean checkSubscribedInstruments(
+    Set<Instrument> subscribedInstruments,
+    Set<Instrument> requestedInstruments
+  ) {
+    if (subscribedInstruments.size() != requestedInstruments.size()) {
+      return false;
+    }
+
+    var subscriptionIndex = subscribedInstruments.stream()
+      .flatMap(instr -> instr.getInstrumentId().getIds().values().stream()
+        .map(idValue -> Map.entry(idValue, instr)))
+      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
+
+    long matchedCount = requestedInstruments.stream()
+      .flatMap(req -> req.getInstrumentId().getIds().values().stream())
+      .map(subscriptionIndex::get)
+      .filter(Objects::nonNull)
+      .distinct()
+      .count();
+
+    return matchedCount == subscribedInstruments.size();
   }
 
   public int getSubscriptionsCount() {

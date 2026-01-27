@@ -5,6 +5,7 @@ public enum MarketDataResponseType {
   LAST_PRICE,
   ORDER_BOOK,
   TRADE,
+  OPEN_INTEREST,
   TRADING_STATUS,
   OTHER
 }

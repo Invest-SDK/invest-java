@@ -30,6 +30,24 @@ public class TradeWrapper extends ResponseWrapper<Trade> {
   }
 
   /**
+   * Метод для получения тикера инструмента
+   *
+   * @return тикер инструмента
+   */
+  public String getTicker() {
+    return response.getTicker();
+  }
+
+  /**
+   * Метод для получения класс-кода инструмента
+   *
+   * @return класс-код инструмента
+   */
+  public String getClassCode() {
+    return response.getClassCode();
+  }
+
+  /**
    * Метод для получения направления сделки
    *
    * @return Направление сделки

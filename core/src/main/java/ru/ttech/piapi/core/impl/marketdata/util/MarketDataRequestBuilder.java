@@ -34,7 +34,7 @@ public class MarketDataRequestBuilder {
           .addAllInstruments(instruments.stream()
             .map(instrument ->
               CandleInstrument.newBuilder()
-                .setInstrumentId(instrument.getInstrumentUid())
+                .setInstrumentId(instrument.getInstrumentId().id())
                 .setInterval(instrument.getSubscriptionInterval())
                 .build())
             .collect(Collectors.toList()))
@@ -52,7 +52,9 @@ public class MarketDataRequestBuilder {
       .setSubscribeLastPriceRequest(SubscribeLastPriceRequest.newBuilder()
         .setSubscriptionAction(subscriptionAction)
         .addAllInstruments(instruments.stream()
-          .map(instrument -> LastPriceInstrument.newBuilder().setInstrumentId(instrument.getInstrumentUid()).build())
+          .map(instrument -> LastPriceInstrument.newBuilder()
+            .setInstrumentId(instrument.getInstrumentId().id())
+            .build())
           .collect(Collectors.toList()))
         .build())
       .build();
@@ -69,7 +71,7 @@ public class MarketDataRequestBuilder {
           .map(instrument -> OrderBookInstrument.newBuilder()
             .setOrderBookType(instrument.getOrderBookType())
             .setDepth(instrument.getDepth())
-            .setInstrumentId(instrument.getInstrumentUid())
+            .setInstrumentId(instrument.getInstrumentId().id())
             .build())
           .collect(Collectors.toList()))
         .build())
@@ -79,6 +81,7 @@ public class MarketDataRequestBuilder {
   public static MarketDataRequest buildTradesRequest(
     List<Instrument> instruments,
     TradeSourceType tradeSourceType,
+    boolean withOpenInterest,
     SubscriptionAction subscriptionAction
   ) {
     return MarketDataRequest.newBuilder()
@@ -86,10 +89,11 @@ public class MarketDataRequestBuilder {
         .setSubscriptionAction(subscriptionAction)
         .addAllInstruments(instruments.stream()
           .map(instrument -> TradeInstrument.newBuilder()
-            .setInstrumentId(instrument.getInstrumentUid())
+            .setInstrumentId(instrument.getInstrumentId().id())
             .build())
           .collect(Collectors.toList()))
         .setTradeSource(tradeSourceType)
+        .setWithOpenInterest(withOpenInterest)
         .build())
       .build();
   }
@@ -102,7 +106,9 @@ public class MarketDataRequestBuilder {
       .setSubscribeInfoRequest(SubscribeInfoRequest.newBuilder()
         .setSubscriptionAction(subscriptionAction)
         .addAllInstruments(instruments.stream()
-          .map(instrument -> InfoInstrument.newBuilder().setInstrumentId(instrument.getInstrumentUid()).build())
+          .map(instrument -> InfoInstrument.newBuilder()
+            .setInstrumentId(instrument.getInstrumentId().id())
+            .build())
           .collect(Collectors.toList()))
         .build())
       .build();

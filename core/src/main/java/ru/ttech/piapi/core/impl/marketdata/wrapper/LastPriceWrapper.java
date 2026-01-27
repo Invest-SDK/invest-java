@@ -29,6 +29,24 @@ public class LastPriceWrapper extends ResponseWrapper<LastPrice> {
   }
 
   /**
+   * Метод для получения тикера инструмента
+   *
+   * @return тикер инструмента
+   */
+  public String getTicker() {
+    return response.getTicker();
+  }
+
+  /**
+   * Метод для получения класс-кода инструмента
+   *
+   * @return класс-код инструмента
+   */
+  public String getClassCode() {
+    return response.getClassCode();
+  }
+
+  /**
    * Метод для получения цены последней сделки за 1 инструмент
    * <p>Чтобы получить стоимость лота, нужно умножить на лотность инструмента.
    * <a href="https://developer.tbank.ru/invest/intro/developer/table_order_currency">

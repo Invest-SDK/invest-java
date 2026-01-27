@@ -18,6 +18,7 @@ import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionStatus;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataRequestBuilder;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.LastPriceWrapper;
+import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OrderBookWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradeWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradingStatusWrapper;
@@ -72,6 +73,7 @@ public class MarketDataStreamManager {
     executorService.submit(() -> startListenersProcessing(context.getCandleQueue(), context.getOnCandleListeners()));
     executorService.submit(() -> startListenersProcessing(context.getLastPriceQueue(), context.getOnLastPriceListeners()));
     executorService.submit(() -> startListenersProcessing(context.getTradesQueue(), context.getOnTradeListeners()));
+    executorService.submit(() -> startListenersProcessing(context.getOpenInterestsQueue(), context.getOnOpenInterestListeners()));
     executorService.submit(() -> startListenersProcessing(context.getOrderBooksQueue(), context.getOnOrderBookListeners()));
     executorService.submit(() -> startListenersProcessing(context.getTradingStatusesQueue(), context.getOnTradingStatusListeners()));
   }
@@ -176,27 +178,37 @@ public class MarketDataStreamManager {
    *     marketDataStreamManager.subscribeTrades(
    *       availableInstruments,
    *       TradeSourceType.TRADE_SOURCE_ALL,
-   *       trade -> logger.info("New trade incoming for instrument: {}", trade.getInstrumentUid())
+   *       true,
+   *       trade -> logger.info("New trade incoming for instrument: {}", trade.getInstrumentUid()),
+   *       openInterest -> logger.info("New open interest incoming for instrument: {}", openInterest.getInstrumentUid())
    *     );
    * }</pre>
    *
    * @param instruments     список инструментов {@link Instrument}
    * @param tradeSourceType тип источника сделок
+   * @param withOpenInterest флаг открытого интереса для фьючерсов
    * @param onTradeListener листенер сделок
+   * @param onOpenInterestListener листенер открытого интереса фьючерсов
    */
   public void subscribeTrades(
     Set<Instrument> instruments,
     TradeSourceType tradeSourceType,
-    OnNextListener<TradeWrapper> onTradeListener
+    boolean withOpenInterest,
+    OnNextListener<TradeWrapper> onTradeListener,
+    OnNextListener<OpenInterestWrapper> onOpenInterestListener
   ) {
     Function<List<Instrument>, MarketDataRequest> requestBuilder = instrumentsSublist ->
-      MarketDataRequestBuilder.buildTradesRequest(instrumentsSublist, tradeSourceType, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
+      MarketDataRequestBuilder.buildTradesRequest(instrumentsSublist, tradeSourceType,
+        withOpenInterest, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
     var filteredInstruments = instruments.stream()
       .filter(instrument -> !isSubscribedTrades(instrument))
       .collect(Collectors.toUnmodifiableSet());
     subscribe(MarketDataResponseType.TRADE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(context.getOnTradeListeners(), onTradeListener))
+        .ifPresent(result -> {
+          addWrapperListener(context.getOnTradeListeners(), onTradeListener);
+          addWrapperListener(context.getOnOpenInterestListeners(), onOpenInterestListener);
+        })
       );
   }
 
@@ -206,9 +218,10 @@ public class MarketDataStreamManager {
    * @param instruments     список инструментов {@link Instrument}
    * @param tradeSourceType тип источника сделок
    */
-  public void unsubscribeTrades(Set<Instrument> instruments, TradeSourceType tradeSourceType) {
+  public void unsubscribeTrades(Set<Instrument> instruments, boolean withOpenInterest, TradeSourceType tradeSourceType) {
     Function<List<Instrument>, MarketDataRequest> requestBuilder = instrumentsSublist ->
-      MarketDataRequestBuilder.buildTradesRequest(instrumentsSublist, tradeSourceType, SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE);
+      MarketDataRequestBuilder.buildTradesRequest(instrumentsSublist, tradeSourceType,
+        withOpenInterest, SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE);
     unsubscribe(MarketDataResponseType.TRADE, instruments, requestBuilder);
   }
 
@@ -248,7 +261,7 @@ public class MarketDataStreamManager {
   public void unsubscribeOrderBooks(Set<Instrument> instruments) {
     Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
       MarketDataRequestBuilder.buildOrderBooksRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE);
-    subscribe(MarketDataResponseType.ORDER_BOOK, instruments, requestBuilder);
+    unsubscribe(MarketDataResponseType.ORDER_BOOK, instruments, requestBuilder);
   }
 
   /**
@@ -287,7 +300,7 @@ public class MarketDataStreamManager {
   public void unsubscribeTradingStatuses(Set<Instrument> instruments) {
     Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
       MarketDataRequestBuilder.buildTradingStatusesRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE);
-    subscribe(MarketDataResponseType.TRADING_STATUS, instruments, requestBuilder);
+    unsubscribe(MarketDataResponseType.TRADING_STATUS, instruments, requestBuilder);
   }
 
   protected <T extends ResponseWrapper<?>> void addWrapperListener(
@@ -441,6 +454,7 @@ public class MarketDataStreamManager {
       .addOnLastPriceListener(context.getGlobalOnLastPriceListener())
       .addOnOrderBookListener(context.getGlobalOnOrderBookListener())
       .addOnTradeListener(context.getGlobalOnTradeListener())
+      .addOnOpenInterestListener(context.getGlobalOnOpenInterestListener())
       .addOnTradingStatusListener(context.getGlobalOnTradingStatusesListener())
       .build();
     return new MarketDataStreamWrapper(streamFactory, configuration);

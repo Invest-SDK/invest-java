@@ -4,6 +4,7 @@ import lombok.Getter;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.LastPriceWrapper;
+import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OrderBookWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradeWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradingStatusWrapper;
@@ -20,16 +21,19 @@ public class MarketDataStreamContext {
   private final OnNextListener<CandleWrapper> globalOnCandleListener;
   private final OnNextListener<LastPriceWrapper> globalOnLastPriceListener;
   private final OnNextListener<TradeWrapper> globalOnTradeListener;
+  private final OnNextListener<OpenInterestWrapper> globalOnOpenInterestListener;
   private final OnNextListener<OrderBookWrapper> globalOnOrderBookListener;
   private final OnNextListener<TradingStatusWrapper> globalOnTradingStatusesListener;
   private final List<OnNextListener<CandleWrapper>> onCandleListeners = Collections.synchronizedList(new ArrayList<>());
   private final List<OnNextListener<LastPriceWrapper>> onLastPriceListeners = Collections.synchronizedList(new ArrayList<>());
   private final List<OnNextListener<TradeWrapper>> onTradeListeners = Collections.synchronizedList(new ArrayList<>());
+  private final List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners = Collections.synchronizedList(new ArrayList<>());
   private final List<OnNextListener<OrderBookWrapper>> onOrderBookListeners = Collections.synchronizedList(new ArrayList<>());
   private final List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners = Collections.synchronizedList(new ArrayList<>());
   private final BlockingQueue<CandleWrapper> candleQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<LastPriceWrapper> lastPriceQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<TradeWrapper> tradesQueue = new LinkedBlockingQueue<>();
+  private final BlockingQueue<OpenInterestWrapper> openInterestsQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<OrderBookWrapper> orderBooksQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<TradingStatusWrapper> tradingStatusesQueue = new LinkedBlockingQueue<>();
 
@@ -38,6 +42,7 @@ public class MarketDataStreamContext {
     this.globalOnCandleListener = candleQueue::offer;
     this.globalOnLastPriceListener = lastPriceQueue::offer;
     this.globalOnTradeListener = tradesQueue::offer;
+    this.globalOnOpenInterestListener = openInterestsQueue::offer;
     this.globalOnOrderBookListener = orderBooksQueue::offer;
     this.globalOnTradingStatusesListener = tradingStatusesQueue::offer;
   }

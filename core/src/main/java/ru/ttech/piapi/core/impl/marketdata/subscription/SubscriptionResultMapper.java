@@ -8,6 +8,7 @@ import ru.tinkoff.piapi.contract.v1.SubscribeTradesResponse;
 import ru.tinkoff.piapi.contract.v1.SubscriptionAction;
 import ru.ttech.piapi.core.impl.marketdata.MarketDataResponseType;
 
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class SubscriptionResultMapper {
@@ -18,7 +19,14 @@ public class SubscriptionResultMapper {
       MarketDataResponseType.CANDLE,
       subscribeCandlesResponse.getCandlesSubscriptionsList().stream()
         .collect(Collectors.toMap(
-          candleSubscription -> new Instrument(candleSubscription.getInstrumentUid(), candleSubscription.getInterval()),
+          subscription -> new Instrument(
+            Map.of(
+              Instrument.IdType.INSTRUMENT_UID, subscription.getInstrumentUid(),
+              Instrument.IdType.TICKER_CLASSCODE, subscription.getTicker() + "_" + subscription.getClassCode(),
+              Instrument.IdType.FIGI, subscription.getFigi()
+            ),
+            subscription.getInterval()
+          ),
           candleSubscription -> mapSubscriptionStatus(candleSubscription.getSubscriptionStatus()))
         )
     );
@@ -30,7 +38,11 @@ public class SubscriptionResultMapper {
       MarketDataResponseType.LAST_PRICE,
       subscribeLastPriceResponse.getLastPriceSubscriptionsList().stream()
         .collect(Collectors.toMap(
-          subscription -> new Instrument(subscription.getInstrumentUid()),
+          subscription -> new Instrument(Map.of(
+            Instrument.IdType.INSTRUMENT_UID, subscription.getInstrumentUid(),
+            Instrument.IdType.TICKER_CLASSCODE, subscription.getTicker() + "_" + subscription.getClassCode(),
+            Instrument.IdType.FIGI, subscription.getFigi()
+          )),
           subscription -> mapSubscriptionStatus(subscription.getSubscriptionStatus()))
         )
     );
@@ -43,7 +55,13 @@ public class SubscriptionResultMapper {
       subscribeOrderBookResponse.getOrderBookSubscriptionsList().stream()
         .collect(Collectors.toMap(
           subscription -> new Instrument(
-            subscription.getInstrumentUid(), subscription.getDepth(), subscription.getOrderBookType()
+            Map.of(
+              Instrument.IdType.INSTRUMENT_UID, subscription.getInstrumentUid(),
+              Instrument.IdType.TICKER_CLASSCODE, subscription.getTicker() + "_" + subscription.getClassCode(),
+              Instrument.IdType.FIGI, subscription.getFigi()
+            ),
+            subscription.getDepth(),
+            subscription.getOrderBookType()
           ),
           subscription -> mapSubscriptionStatus(subscription.getSubscriptionStatus()))
         )
@@ -56,7 +74,11 @@ public class SubscriptionResultMapper {
       MarketDataResponseType.TRADE,
       subscribeTradesResponse.getTradeSubscriptionsList().stream()
         .collect(Collectors.toMap(
-          subscription -> new Instrument(subscription.getInstrumentUid()),
+          subscription -> new Instrument(Map.of(
+            Instrument.IdType.INSTRUMENT_UID, subscription.getInstrumentUid(),
+            Instrument.IdType.TICKER_CLASSCODE, subscription.getTicker() + "_" + subscription.getClassCode(),
+            Instrument.IdType.FIGI, subscription.getFigi()
+          )),
           subscription -> mapSubscriptionStatus(subscription.getSubscriptionStatus()))
         )
     );
@@ -68,7 +90,11 @@ public class SubscriptionResultMapper {
       MarketDataResponseType.TRADING_STATUS,
       subscribeInfoResponse.getInfoSubscriptionsList().stream()
         .collect(Collectors.toMap(
-          subscription -> new Instrument(subscription.getInstrumentUid()),
+          subscription -> new Instrument(Map.of(
+            Instrument.IdType.INSTRUMENT_UID, subscription.getInstrumentUid(),
+            Instrument.IdType.TICKER_CLASSCODE, subscription.getTicker() + "_" + subscription.getClassCode(),
+            Instrument.IdType.FIGI, subscription.getFigi()
+          )),
           subscription -> mapSubscriptionStatus(subscription.getSubscriptionStatus()))
         )
     );

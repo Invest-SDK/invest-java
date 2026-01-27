@@ -27,6 +27,24 @@ public class TradingStatusWrapper extends ResponseWrapper<TradingStatus> {
   }
 
   /**
+   * Метод для получения тикера инструмента
+   *
+   * @return тикер инструмента
+   */
+  public String getTicker() {
+    return response.getTicker();
+  }
+
+  /**
+   * Метод для получения класс-кода инструмента
+   *
+   * @return класс-код инструмента
+   */
+  public String getClassCode() {
+    return response.getClassCode();
+  }
+
+  /**
    * Метод для получения обновлённого торгового статуса
    *
    * @return Статус торговли инструментом

@@ -52,6 +52,8 @@ public class MarketDataStreamObserver extends StreamResponseObserver<MarketDataR
       return MarketDataResponseType.TRADE;
     } else if (marketDataResponse.hasTradingStatus()) {
       return MarketDataResponseType.TRADING_STATUS;
+    } else if (marketDataResponse.hasOpenInterest()) {
+      return MarketDataResponseType.OPEN_INTEREST;
     }
     return MarketDataResponseType.OTHER;
   }

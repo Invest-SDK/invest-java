@@ -2,7 +2,6 @@ package ru.ttech.piapi.example.core;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.tinkoff.piapi.contract.v1.GetCandlesRequest;
 import ru.tinkoff.piapi.contract.v1.InstrumentsRequest;
 import ru.tinkoff.piapi.contract.v1.InstrumentsServiceGrpc;
 import ru.tinkoff.piapi.contract.v1.SecurityTradingStatus;
@@ -31,13 +30,13 @@ public class MarketDataManagerExample {
     var response = instrumentsService.callSyncMethod(stub -> stub.shares(InstrumentsRequest.getDefaultInstance()));
     // Фильтруем по доступности
     var availableInstruments = response.getInstrumentsList().stream()
-      .filter(share -> share.getTradingStatus() == SecurityTradingStatus.SECURITY_TRADING_STATUS_DEALER_NORMAL_TRADING
+      .filter(share -> share.getTradingStatus() == SecurityTradingStatus.SECURITY_TRADING_STATUS_NORMAL_TRADING
         && share.getApiTradeAvailableFlag())
       .map(share -> new Instrument(share.getUid(), SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE))
       .collect(Collectors.toSet());
     logger.info("Total available shares: {}", availableInstruments.size());
     availableInstruments.forEach(instrument ->
-      logger.debug("InstrumentUID: {}", instrument.getInstrumentUid())
+      logger.debug("Instrument: {}", instrument.getInstrumentId())
     );
     var streamServiceFactory = StreamServiceStubFactory.create(unaryServiceFactory);
     var streamManagerFactory = StreamManagerFactory.create(streamServiceFactory);
@@ -45,7 +44,8 @@ public class MarketDataManagerExample {
     var scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     var marketDataStreamManager = streamManagerFactory.newMarketDataStreamManager(executorService, scheduledExecutorService);
     // Подписываемся на свечи по инструментам
-    OnNextListener<CandleWrapper> listener = candle -> logger.info("New candle incoming for instrument: {}", candle.getInstrumentUid());
+    OnNextListener<CandleWrapper> listener = candle ->
+      logger.info("New candle incoming for instrument: {}", candle.getTicker() + "_" + candle.getClassCode());
     var subscriptionSpec = new CandleSubscriptionSpec();
     logger.info("Подписываемся");
     marketDataStreamManager.subscribeCandles(availableInstruments, subscriptionSpec, listener);

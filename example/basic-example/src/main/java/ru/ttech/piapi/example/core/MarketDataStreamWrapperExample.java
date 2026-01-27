@@ -34,6 +34,10 @@ public class MarketDataStreamWrapperExample {
           .setInstrumentId("9978b56f-782a-4a80-a4b1-a48cbecfd194")
           .setInterval(SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE)
           .build())
+        .addInstruments(CandleInstrument.newBuilder()
+          .setInstrumentId("SBER_TQBR")
+          .setInterval(SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE)
+          .build())
         .setWaitingClose(true)
         .build())
       .build();

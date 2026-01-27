@@ -1,5 +1,6 @@
 package ru.ttech.piapi.core.impl.marketdata.wrapper;
 
+import lombok.Getter;
 import ru.tinkoff.piapi.contract.v1.Order;
 import ru.tinkoff.piapi.contract.v1.OrderBook;
 import ru.tinkoff.piapi.contract.v1.OrderBookType;
@@ -10,12 +11,12 @@ import ru.ttech.piapi.core.impl.wrapper.ResponseWrapper;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Стакан
  * <p>Обертка для работы с {@link OrderBook}
  */
+@Getter
 public class OrderBookWrapper extends ResponseWrapper<OrderBook> {
 
   private final List<OrderWrapper> bids;
@@ -24,9 +25,9 @@ public class OrderBookWrapper extends ResponseWrapper<OrderBook> {
   public OrderBookWrapper(OrderBook orderBook) {
     super(orderBook);
     this.bids = orderBook.getBidsList().stream().map(OrderWrapper::new)
-      .collect(Collectors.toUnmodifiableList());
+      .toList();
     this.asks = orderBook.getAsksList().stream().map(OrderWrapper::new)
-      .collect(Collectors.toUnmodifiableList());
+      .toList();
   }
 
   /**
@@ -36,6 +37,24 @@ public class OrderBookWrapper extends ResponseWrapper<OrderBook> {
    */
   public String getFigi() {
     return response.getFigi();
+  }
+
+  /**
+   * Метод для получения тикера инструмента
+   *
+   * @return тикер инструмента
+   */
+  public String getTicker() {
+    return response.getTicker();
+  }
+
+  /**
+   * Метод для получения класс-кода инструмента
+   *
+   * @return класс-код инструмента
+   */
+  public String getClassCode() {
+    return response.getClassCode();
   }
 
   /**
@@ -54,24 +73,6 @@ public class OrderBookWrapper extends ResponseWrapper<OrderBook> {
    */
   public boolean isConsistent() {
     return response.getIsConsistent();
-  }
-
-  /**
-   * Метод для получения списка предложений
-   *
-   * @return список предложений
-   */
-  public List<OrderWrapper> getBids() {
-    return bids;
-  }
-
-  /**
-   * Метод для получения списка спроса
-   *
-   * @return список спроса
-   */
-  public List<OrderWrapper> getAsks() {
-    return asks;
   }
 
   /**

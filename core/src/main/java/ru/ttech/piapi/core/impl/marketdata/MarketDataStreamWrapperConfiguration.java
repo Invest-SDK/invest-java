@@ -4,6 +4,7 @@ import lombok.Getter;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.LastPriceWrapper;
+import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OrderBookWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradeWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradingStatusWrapper;
@@ -23,6 +24,7 @@ public class MarketDataStreamWrapperConfiguration {
   private final List<OnNextListener<LastPriceWrapper>> onLastPriceListeners;
   private final List<OnNextListener<OrderBookWrapper>> onOrderBookListeners;
   private final List<OnNextListener<TradeWrapper>> onTradeListeners;
+  private final List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners;
   private final List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners;
   @Getter
   private final List<Runnable> onConnectListeners;
@@ -33,6 +35,7 @@ public class MarketDataStreamWrapperConfiguration {
     List<OnNextListener<LastPriceWrapper>> onLastPriceListeners,
     List<OnNextListener<OrderBookWrapper>> onOrderBookListeners,
     List<OnNextListener<TradeWrapper>> onTradeListeners,
+    List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners,
     List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners,
     List<Runnable> onConnectListeners
   ) {
@@ -41,6 +44,7 @@ public class MarketDataStreamWrapperConfiguration {
     this.onLastPriceListeners = onLastPriceListeners;
     this.onOrderBookListeners = onOrderBookListeners;
     this.onTradeListeners = onTradeListeners;
+    this.onOpenInterestListeners = onOpenInterestListeners;
     this.onTradingStatusListeners = onTradingStatusListeners;
     this.onConnectListeners = onConnectListeners;
   }
@@ -51,6 +55,7 @@ public class MarketDataStreamWrapperConfiguration {
     onLastPriceListeners.forEach(builder::addOnLastPriceListener);
     onOrderBookListeners.forEach(builder::addOnOrderBookListener);
     onTradeListeners.forEach(builder::addOnTradeListener);
+    onOpenInterestListeners.forEach(builder::addOnOpenInterestListener);
     onTradingStatusListeners.forEach(builder::addOnTradingStatusListener);
     return builder;
   }
@@ -72,6 +77,7 @@ public class MarketDataStreamWrapperConfiguration {
     private final List<OnNextListener<LastPriceWrapper>> onLastPriceListeners = new ArrayList<>();
     private final List<OnNextListener<OrderBookWrapper>> onOrderBookListeners = new ArrayList<>();
     private final List<OnNextListener<TradeWrapper>> onTradeListeners = new ArrayList<>();
+    private final List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners = new ArrayList<>();
     private final List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners = new ArrayList<>();
     private final List<Runnable> onConnectListeners = new ArrayList<>();
 
@@ -136,6 +142,20 @@ public class MarketDataStreamWrapperConfiguration {
     }
 
     /**
+     * Метод добавления листенера для обработки {@link OpenInterestWrapper}
+     *
+     * @param onOpenInterestListener Листенер для обработки {@link OpenInterestWrapper}
+     *                        <p>Можно задать в виде лямбы: <pre>{@code
+     *                                               openInterest -> log.info("{}", openInterest)
+     *                                               }</pre>
+     * @return Билдер конфигурации обёртки
+     */
+    public Builder addOnOpenInterestListener(OnNextListener<OpenInterestWrapper> onOpenInterestListener) {
+      onOpenInterestListeners.add(onOpenInterestListener);
+      return this;
+    }
+
+    /**
      * Метод добавления листенера для обработки {@link TradingStatusWrapper}
      *
      * @param onTradingStatusListener Листенер для обработки {@link TradingStatusWrapper}
@@ -166,7 +186,7 @@ public class MarketDataStreamWrapperConfiguration {
     public MarketDataStreamWrapperConfiguration build() {
       return new MarketDataStreamWrapperConfiguration(
         executorService, onCandleListeners, onLastPriceListeners, onOrderBookListeners, onTradeListeners,
-        onTradingStatusListeners, onConnectListeners
+        onOpenInterestListeners, onTradingStatusListeners, onConnectListeners
       );
     }
   }

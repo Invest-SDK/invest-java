@@ -30,6 +30,24 @@ public class CandleWrapper extends ResponseWrapper<Candle> {
   }
 
   /**
+   * Метод для получения тикера инструмента
+   *
+   * @return тикер инструмента
+   */
+  public String getTicker() {
+    return response.getTicker();
+  }
+
+  /**
+   * Метод для получения класс-кода инструмента
+   *
+   * @return класс-код инструмента
+   */
+  public String getClassCode() {
+    return response.getClassCode();
+  }
+
+  /**
    * Метод для получения интервала свечи
    *
    * @return Интервал свечи
@@ -97,6 +115,24 @@ public class CandleWrapper extends ResponseWrapper<Candle> {
    */
   public long getVolume() {
     return response.getVolume();
+  }
+
+  /**
+   * Метод для получения объёма сделок в лотах на покупку
+   *
+   * @return Объём сделок в лотах на покупку
+   */
+  public long getVolumeBuy() {
+    return response.getVolumeBuy();
+  }
+
+  /**
+   * Метод для получения объёма сделок в лотах на продажу
+   *
+   * @return Объём сделок в лотах на продажу
+   */
+  public long getVolumeSell() {
+    return response.getVolumeSell();
   }
 
   /**

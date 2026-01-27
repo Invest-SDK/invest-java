@@ -13,6 +13,7 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnErrorListener;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.LastPriceWrapper;
+import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OrderBookWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradeWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradingStatusWrapper;
@@ -154,6 +155,22 @@ public class MarketDataStreamConfiguration
       return addMarketDataResponseListener(
         MarketDataResponseType.TRADE,
         response -> onTradeListener.onNext(new TradeWrapper(response.getTrade()))
+      );
+    }
+
+    /**
+     * Метод добавления листенера для обработки {@link OpenInterestWrapper}
+     *
+     * @param onOpenInterestListener Листенер для обработки {@link OpenInterestWrapper}
+     *                        <p>Можно задать в виде лямбы: <pre>{@code
+     *                                                  openInterest -> log.info("{}", openInterest)
+     *                                                  }</pre>
+     * @return Билдер конфигурации обёртки над стримом
+     */
+    public Builder addOnOpenInterestListener(OnNextListener<OpenInterestWrapper> onOpenInterestListener) {
+      return addMarketDataResponseListener(
+        MarketDataResponseType.OPEN_INTEREST,
+        response -> onOpenInterestListener.onNext(new OpenInterestWrapper(response.getOpenInterest()))
       );
     }
 
