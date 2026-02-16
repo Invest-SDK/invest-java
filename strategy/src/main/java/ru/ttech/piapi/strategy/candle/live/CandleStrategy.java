@@ -12,6 +12,7 @@ import ru.ttech.piapi.core.connector.ServiceStubFactory;
 import ru.ttech.piapi.core.connector.resilience.ResilienceAsyncStubWrapper;
 import ru.ttech.piapi.core.connector.resilience.ResilienceConfiguration;
 import ru.ttech.piapi.core.helpers.TimeMapper;
+import ru.ttech.piapi.core.impl.marketdata.MarketDataManager;
 import ru.ttech.piapi.core.impl.marketdata.MarketDataStreamManager;
 import ru.ttech.piapi.core.impl.marketdata.subscription.CandleSubscriptionSpec;
 import ru.ttech.piapi.core.impl.marketdata.subscription.Instrument;
@@ -36,14 +37,27 @@ public class CandleStrategy {
 
   private final CandleStrategyConfiguration configuration;
   private final ServiceStubFactory serviceFactory;
-  private final MarketDataStreamManager streamManager;
+  private final MarketDataManager marketDataManager;
 
   public CandleStrategy(
     CandleStrategyConfiguration configuration,
-    MarketDataStreamManager streamManager
+    MarketDataManager marketDataManager
   ) {
-    this.streamManager = streamManager;
     this.configuration = configuration;
+    this.marketDataManager = marketDataManager;
+
+    MarketDataStreamManager streamManager = marketDataManager.getStreamManager();
+    this.serviceFactory = streamManager.getStreamFactory().getServiceStubFactory();
+  }
+
+  public CandleStrategy(
+    CandleStrategyConfiguration configuration,
+    MarketDataStreamManager marketDataStreamManager
+  ) {
+    this.configuration = configuration;
+    this.marketDataManager = new MarketDataManager(marketDataStreamManager);
+
+    MarketDataStreamManager streamManager = marketDataManager.getStreamManager();
     this.serviceFactory = streamManager.getStreamFactory().getServiceStubFactory();
   }
 
@@ -59,12 +73,12 @@ public class CandleStrategy {
         .map(candleInstrument -> new Instrument(candleInstrument.getInstrumentId(), candleInstrument.getInterval()))
         .collect(Collectors.toSet());
       logger.info("Subscribing to candles...");
-      streamManager.subscribeCandles(
+      marketDataManager.subscribeCandles(
         instruments,
         new CandleSubscriptionSpec(configuration.getCandleSource()),
         this::proceedNewCandle
       );
-      streamManager.start();
+      marketDataManager.start();
       logger.info("Candle strategy started");
     });
   }
@@ -78,6 +92,9 @@ public class CandleStrategy {
     try {
       var barSeries = configuration.getBarSeriesMap().get(candleInstrument.get());
       barSeries.addBar(BarMapper.mapCandleWrapperToBar(candle));
+      if (candle.isHistory()) {
+        return;
+      }
       int endIndex = barSeries.getEndIndex();
       var strategy = configuration.getStrategiesMap().get(candleInstrument.get());
       if (strategy.shouldEnter(endIndex)) {

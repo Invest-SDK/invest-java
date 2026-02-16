@@ -448,15 +448,23 @@ public class MarketDataStreamManager {
       });
   }
 
+  protected void addOnConnectListener(Runnable listener) {
+    if (!context.getOnConnectListeners().contains(listener)) {
+      context.getOnConnectListeners().add(listener);
+    }
+  }
+
   protected MarketDataStreamWrapper createStreamWrapper() {
-    var configuration = MarketDataStreamWrapperConfiguration.builder(scheduledExecutorService)
+    var configurationBuilder = MarketDataStreamWrapperConfiguration.builder(scheduledExecutorService)
       .addOnCandleListener(context.getGlobalOnCandleListener())
       .addOnLastPriceListener(context.getGlobalOnLastPriceListener())
       .addOnOrderBookListener(context.getGlobalOnOrderBookListener())
       .addOnTradeListener(context.getGlobalOnTradeListener())
       .addOnOpenInterestListener(context.getGlobalOnOpenInterestListener())
-      .addOnTradingStatusListener(context.getGlobalOnTradingStatusesListener())
-      .build();
+      .addOnTradingStatusListener(context.getGlobalOnTradingStatusesListener());
+
+    context.getOnConnectListeners().forEach(configurationBuilder::addOnConnectListener);
+    var configuration = configurationBuilder.build();
     return new MarketDataStreamWrapper(streamFactory, configuration);
   }
 

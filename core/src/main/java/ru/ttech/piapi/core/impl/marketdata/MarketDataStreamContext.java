@@ -36,6 +36,7 @@ public class MarketDataStreamContext {
   private final BlockingQueue<OpenInterestWrapper> openInterestsQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<OrderBookWrapper> orderBooksQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<TradingStatusWrapper> tradingStatusesQueue = new LinkedBlockingQueue<>();
+  private final List<Runnable> onConnectListeners = Collections.synchronizedList(new ArrayList<>());
 
   @SuppressWarnings("ResultOfMethodCallIgnored")
   public MarketDataStreamContext() {

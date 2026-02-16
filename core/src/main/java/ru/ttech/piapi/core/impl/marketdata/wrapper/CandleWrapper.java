@@ -15,9 +15,19 @@ import java.time.LocalDateTime;
  * <p>Обертка для работы с {@link Candle}
  */
 public class CandleWrapper extends ResponseWrapper<Candle> {
+  private final boolean history;
 
   public CandleWrapper(Candle candle) {
+    this(candle, false);
+  }
+
+  public CandleWrapper(Candle candle, boolean history) {
     super(candle);
+    this.history = history;
+  }
+
+  public boolean isHistory() {
+    return history;
   }
 
   /**
