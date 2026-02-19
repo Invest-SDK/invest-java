@@ -5,11 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.tinkoff.piapi.contract.v1.Candle;
 import ru.tinkoff.piapi.contract.v1.CandleInterval;
-import ru.tinkoff.piapi.contract.v1.CandleSource;
 import ru.tinkoff.piapi.contract.v1.GetCandlesRequest;
 import ru.tinkoff.piapi.contract.v1.HistoricCandle;
 import ru.tinkoff.piapi.contract.v1.MarketDataServiceGrpc;
-import ru.tinkoff.piapi.contract.v1.SubscriptionInterval;
 import ru.tinkoff.piapi.contract.v1.TradeSourceType;
 import ru.ttech.piapi.core.connector.ServiceStubFactory;
 import ru.ttech.piapi.core.connector.resilience.ResilienceAsyncStubWrapper;
@@ -24,24 +22,27 @@ import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OrderBookWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradeWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradingStatusWrapper;
+import ru.ttech.piapi.core.impl.wrapper.ResponseWrapper;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * Менеджер стримов рыночных данных с поддержкой восстановления пропущенных свечей.
@@ -54,16 +55,10 @@ public class MarketDataManager {
     private final MarketDataStreamManager streamManager;
     private final ResilienceAsyncStubWrapper<MarketDataServiceGrpc.MarketDataServiceStub> marketDataService;
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-    private final AtomicBoolean recoveryInProgress = new AtomicBoolean(false);
-    private final AtomicReference<CompletableFuture<Void>> recoveryGate =
-            new AtomicReference<>(CompletableFuture.completedFuture(null));
-    private final ConcurrentMap<CandleKey, OnNextListener<CandleWrapper>> replay = new ConcurrentHashMap<>();
-    private final ConcurrentMap<CandleKey, LocalDateTime> lastTime = new ConcurrentHashMap<>();
-    private final ConcurrentMap<CandleKey, NavigableMap<LocalDateTime, CandleWrapper>> pending = new ConcurrentHashMap<>();
-    private final AtomicBoolean firstConnectSeen = new AtomicBoolean(false);
-    private final ConcurrentMap<CandleKey, CandleMeta> candleMeta = new ConcurrentHashMap<>();
-    private final AtomicLong lastRecoveryTriggerMs = new AtomicLong(0);
-    private static final long RECOVERY_DEBOUNCE_MS = 5_000;
+    private final List<OnNextListener<CandleWrapper>> replay = Collections.synchronizedList(new ArrayList<>());
+    private final ConcurrentMap<InstrIdResponseType, NavigableMap<LocalDateTime, CandleWrapper>> pending = new ConcurrentHashMap<>();
+    private final ConcurrentMap<InstrIdResponseType, AtomicBoolean> recovering = new ConcurrentHashMap<>();
+
 
     public MarketDataManager(MarketDataStreamManager streamManager) {
         this.streamManager = streamManager;
@@ -74,16 +69,10 @@ public class MarketDataManager {
                 ResilienceConfiguration.builder(executorService, serviceFactory.getConfiguration()).build()
         );
 
-        streamManager.addOnConnectListener(() -> {
-            if (firstConnectSeen.compareAndSet(false, true)) {
-                return;
-            }
-            var now = System.currentTimeMillis();
-            if (now - lastRecoveryTriggerMs.getAndSet(now) < RECOVERY_DEBOUNCE_MS) {
-                return;
-            }
-            recoverMissedCandles();
-        });
+        streamManager.addOnConnectListener((onConnectStreamInfo) ->
+                recoverMissedCandles(onConnectStreamInfo.id()));
+        streamManager.addOnConnectListenersBlockInstruments(onConnectStreamInfo ->
+                blockRecoverCandles(onConnectStreamInfo.id()));
     }
 
     /**
@@ -108,15 +97,20 @@ public class MarketDataManager {
         }
     }
 
+    private void blockRecoverCandles(UUID wrapperId) {
+        var subscriptions = streamManager.getSubscriptionsByWrapperUuid(wrapperId);
+        subscriptions.forEach(subscription -> {
+            if (subscription.getInstrument().getSubscriptionInterval() != null) {
+                var instrIdResponseType = new InstrIdResponseType(subscription.getInstrument().getInstrumentId().id(),
+                        MarketDataResponseType.CANDLE);
+                recovering.putIfAbsent(instrIdResponseType, new AtomicBoolean(true));
+            }
+        });
+    }
+
     /**
      * Метод для подписки на свечи по списку инструментов.
      * <p>
-     * При получении новых свечей:
-     * <ul>
-     *   <li>Если recovery не выполняется — свеча сразу передаётся пользователю</li>
-     *   <li>Если recovery выполняется — свеча временно буферизуется</li>
-     * </ul>
-     *
      * <p>Пример:
      * <pre>{@code
      * marketDataManager.subscribeCandles(
@@ -135,37 +129,18 @@ public class MarketDataManager {
             CandleSubscriptionSpec spec,
             OnNextListener<CandleWrapper> onCandleListener
     ) {
-        instruments.forEach(instrument -> {
-            var key = CandleKey.of(instrument, spec);
-            replay.put(key, onCandleListener);
-            pending.putIfAbsent(key, new ConcurrentSkipListMap<>());
-        });
-
+        addWrapperListener(replay, onCandleListener);
         streamManager.subscribeCandles(instruments, spec, candle -> {
-            var key = CandleKey.of(candle.getInstrumentUid(), candle.getInterval(), spec);
-            var original = candle.getOriginal();
-            candleMeta.putIfAbsent(key, new CandleMeta(
-                    original.getFigi(),
-                    original.getTicker(),
-                    original.getClassCode(),
-                    original.getCandleSourceType()
-            ));
+            var key = InstrIdResponseType.of(MarketDataResponseType.CANDLE, candle.getInstrumentUid());
+            var isRecovering = recovering.getOrDefault(key, new AtomicBoolean(false)).get();
 
-            var gate = recoveryGate.get();
-            if (!gate.isDone()) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Waiting for recovery gate {}, with time {}",
-                            candle.getInstrumentUid(),
-                            candle.getTime());
-                }
-                pending.computeIfAbsent(key, k -> new ConcurrentSkipListMap<>())
-                        .put(candle.getTime(), new CandleWrapper(candle.getOriginal(), true));
-                return;
+            if (isRecovering) {
+                pending
+                        .computeIfAbsent(key, k -> new ConcurrentSkipListMap<>())
+                        .put(candle.getTime(), candle);
+            } else {
+                replay.forEach(listener -> listener.onNext(candle));
             }
-
-            onCandleListener.onNext(candle);
-
-            lastTime.merge(key, candle.getTime(), (oldV, newV) -> newV.isAfter(oldV) ? newV : oldV);
         });
     }
 
@@ -175,7 +150,6 @@ public class MarketDataManager {
      * Удаляет внутренние структуры:
      * <ul>
      *   <li>листенер</li>
-     *   <li>последнее полученное время свечи</li>
      *   <li>буфер ожидающих свечей</li>
      * </ul>
      *
@@ -184,10 +158,8 @@ public class MarketDataManager {
      */
     public void unsubscribeCandles(Set<Instrument> instruments, CandleSubscriptionSpec spec) {
         streamManager.unsubscribeCandles(instruments, spec);
-        instruments.forEach(i -> {
-            var key = CandleKey.of(i, spec);
-            replay.remove(key);
-            lastTime.remove(key);
+        instruments.forEach(instrument -> {
+            var key = InstrIdResponseType.of(MarketDataResponseType.CANDLE, instrument.getInstrumentId().id());
             pending.remove(key);
         });
     }
@@ -367,30 +339,32 @@ public class MarketDataManager {
      * после реконнекта стрима.
      * <p>
      */
-    private void recoverMissedCandles() {
-        if (!recoveryInProgress.compareAndSet(false, true)) {
-            return;
-        }
-        var gate = new CompletableFuture<Void>();
-        recoveryGate.set(gate);
-        logger.info("Starting candles recovery...");
-        var futures = replay.entrySet().stream()
-                .map(e -> recoverOne(e.getKey(), e.getValue()))
+    private void recoverMissedCandles(UUID wrapperId) {
+        logger.info("Starting recovery for wrapper {}...", wrapperId);
+        streamManager.setNeedToUpdateReceiveTimeByWrapperUuid(false, wrapperId);
+        var subscriptions = streamManager.getSubscriptionsByWrapperUuid(wrapperId);
+        var futures = subscriptions.stream()
+                .map(subscriptionEntry -> {
+                    if (subscriptionEntry.getInstrument().getSubscriptionInterval() != null) {
+                                return recoverOne(
+                                        subscriptionEntry.getInstrument(),
+                                        subscriptionEntry.getLastReceiveTime(),
+                                        wrapperId
+                                );
+                            }
+                            return CompletableFuture.completedFuture(null);
+                        }
+                )
                 .toArray(CompletableFuture[]::new);
 
         CompletableFuture.allOf(futures)
                 .whenCompleteAsync((unused, throwable) -> {
-                    try {
                         if (throwable != null) {
-                            logger.warn("Candles recovery failed", throwable);
+                            logger.warn("Recovery failed for wrapper {}", wrapperId, throwable);
                         } else {
-                            logger.info("Candles recovery finished");
+                            logger.info("Recovery finished for wrapper {}", wrapperId);
                         }
-                        flushAllPending();
-                    } finally {
-                        recoveryInProgress.set(false);
-                        gate.complete(null);
-                    }
+                  streamManager.setNeedToUpdateReceiveTimeByWrapperUuid(true, wrapperId);
                 }, executorService);
     }
 
@@ -398,24 +372,24 @@ public class MarketDataManager {
      * Восстанавливает пропущенные свечи для конкретной подписки.
      * <p>
      *
-     * @param key      ключ подписки
-     * @param listener пользовательский обработчик
      * @return future завершения восстановления
      */
-    private CompletableFuture<Void> recoverOne(CandleKey key, OnNextListener<CandleWrapper> listener) {
-        var time = lastTime.get(key);
-        var endTime = Instant.now().truncatedTo(ChronoUnit.MINUTES)
-                .atOffset(ZoneOffset.UTC)
-                .toLocalDateTime();
-        if (time == null) {
-            return CompletableFuture.runAsync(() -> flushPendingAll(key, listener), executorService);
+    private CompletableFuture<Void> recoverOne(Instrument instrument, LocalDateTime lastReceiveTime, UUID wrapperId) {
+        if (lastReceiveTime == null) {
+            return CompletableFuture.completedFuture(null);
         }
+        var endTime = Instant.now()
+                .atOffset(ZoneOffset.UTC)
+                .toLocalDateTime().truncatedTo(ChronoUnit.SECONDS);
+
+        var candleKey = InstrIdResponseType.of(MarketDataResponseType.CANDLE, instrument.getInstrumentId().id());
+        recovering.computeIfAbsent(candleKey, k -> new AtomicBoolean()).set(true);
+        pending.computeIfAbsent(candleKey, k -> new ConcurrentSkipListMap<>());
         var request = GetCandlesRequest.newBuilder()
-                .setFrom(TimeMapper.localDateTimeToTimestamp(time))
+                .setFrom(TimeMapper.localDateTimeToTimestamp(lastReceiveTime))
                 .setTo(TimeMapper.localDateTimeToTimestamp(endTime))
-                .setInstrumentId(key.instrumentId)
-                .setInterval(CandleInterval.forNumber(key.interval.getNumber()))
-                .setCandleSourceType(key.candleSource)
+                .setInstrumentId(instrument.getInstrumentId().id())
+                .setInterval(CandleInterval.forNumber(instrument.getSubscriptionInterval().getNumber()))
                 .build();
 
         var responseFuture = marketDataService.callAsyncMethod(
@@ -426,143 +400,92 @@ public class MarketDataManager {
         return responseFuture
                 .thenApplyAsync(response -> response.getCandlesList().stream()
                         .filter(HistoricCandle::getIsComplete)
-                        .map(h -> toHistoryWrapper(h, key))
-                        .filter(cw -> cw.getTime().isAfter(time))
+                        .map(historicCandle -> toHistoryWrapper(historicCandle, instrument))
                         .sorted(Comparator.comparing(CandleWrapper::getTime))
                         .toList(), executorService)
                 .thenAcceptAsync(history -> {
                     for (var cw : history) {
-                        listener.onNext(cw);
-                        lastTime.put(key, cw.getTime());
+                        replay.forEach(replayListener -> replayListener.onNext(cw));
                     }
 
-                    var map = pending.get(key);
-                    if (map == null || map.isEmpty()) {
-                        return;
+                    var buffered = pending.get(candleKey);
+                    if (buffered != null && !buffered.isEmpty()) {
+                        buffered.values()
+                                .stream()
+                                .map(this::toHistoryWrapper)
+                                .forEach(historyWrapper -> replay.forEach(
+                                        replayListener ->
+                                                replayListener.onNext(historyWrapper)));
+
+                        buffered.clear();
                     }
+                    streamManager.setLastReceiveTimeByWrapperUuid(instrument, endTime, wrapperId);
 
-                    var last = lastTime.get(key);
-                    if (last == null) {
-                        flushPendingAll(key, listener);
-                        return;
+                    recovering.get(candleKey).set(false);
+                }, executorService).exceptionally(ex -> {
+                    var state = recovering.get(candleKey);
+                    if (state != null) {
+                        state.set(false);
                     }
-
-                    var tail = map.tailMap(last.plusNanos(1), true);
-                    for (var entry : tail.entrySet()) {
-                        var cw = entry.getValue();
-                        listener.onNext(cw);
-                        lastTime.put(key, cw.getTime());
-                    }
-
-                    var newLast = lastTime.get(key);
-                    map.headMap(newLast.plusNanos(1), false).clear();
-                }, executorService);
+                    throw new CompletionException(ex);
+                });
     }
 
-    /**
-     * Сбрасывает буфер всех подписок после завершения recovery.
-     * <p>
-     */
-    private void flushAllPending() {
-        for (var entry : pending.entrySet()) {
-            var key = entry.getKey();
-            var map = entry.getValue();
-            if (map == null || map.isEmpty()) continue;
+    private CandleWrapper toHistoryWrapper(HistoricCandle historicCandle, Instrument instrument) {
+        var candleFigi = instrument.getInstrumentId().getIds().get(Instrument.IdType.FIGI);
+        var candleTickerClassCode = instrument.getInstrumentId().getIds().get(Instrument.IdType.TICKER_CLASSCODE);
+        var splitCandleTickerClassCode = splitTickerClassCode(candleTickerClassCode);
+        var candleTicker = splitCandleTickerClassCode.ticker;
+        var candleClassCode = splitCandleTickerClassCode.classCode;
 
-            var listener = replay.get(key);
-            if (listener == null) {
-                map.clear();
-                continue;
-            }
-
-            flushMapPending(key, listener, map);
-        }
-    }
-
-    /**
-     * Сбрасывает буфер свечей для конкретной подписки.
-     *
-     * @param key      ключ подписки
-     * @param listener пользовательский обработчик
-     */
-    private void flushPendingAll(CandleKey key, OnNextListener<CandleWrapper> listener) {
-        var map = pending.get(key);
-        if (map == null || map.isEmpty()) return;
-
-        flushMapPending(key, listener, map);
-    }
-
-    /**
-     * Доставляет пользователю все буферизованные свечи
-     * в порядке их времени и обновляет lastTime.
-     *
-     * @param key      ключ подписки
-     * @param listener пользовательский обработчик
-     * @param map      буфер свечей
-     */
-    private void flushMapPending(CandleKey key, OnNextListener<CandleWrapper> listener, NavigableMap<LocalDateTime, CandleWrapper> map) {
-        for (var e : map.entrySet()) {
-            var cw = e.getValue();
-            if (logger.isDebugEnabled()) {
-                logger.debug("Flushing pending candle {}, with time{}", key.instrumentId, cw.getTime());
-            }
-            listener.onNext(cw);
-            lastTime.merge(key, cw.getTime(), (oldV, newV) -> newV.isAfter(oldV) ? newV : oldV);
-        }
-        map.clear();
-    }
-
-    private CandleWrapper toHistoryWrapper(HistoricCandle c, CandleKey key) {
-        var meta = candleMeta.get(key);
         var candle = Candle.newBuilder()
-                .setInstrumentUid(key.instrumentId)
-                .setInterval(key.interval)
-                .setTime(c.getTime())
-                .setOpen(c.getOpen())
-                .setHigh(c.getHigh())
-                .setLow(c.getLow())
-                .setClose(c.getClose())
-                .setVolume(c.getVolume())
-                .setVolumeBuy(c.getVolumeBuy())
-                .setVolumeSell(c.getVolumeSell());
-
-        if (meta != null) {
-            var candleSource = meta.candleSource() != null ? meta.candleSource() : CandleSource.CANDLE_SOURCE_UNSPECIFIED;
-            candle.setCandleSourceType(candleSource);
-            setIfPresent(meta.figi(), candle::setFigi);
-            setIfPresent(meta.ticker(), candle::setTicker);
-            setIfPresent(meta.classCode(), candle::setClassCode);
-        }
-
+                .setInstrumentUid(instrument.getInstrumentId().id())
+                .setInterval(instrument.getSubscriptionInterval())
+                .setTime(historicCandle.getTime())
+                .setOpen(historicCandle.getOpen())
+                .setHigh(historicCandle.getHigh())
+                .setLow(historicCandle.getLow())
+                .setClose(historicCandle.getClose())
+                .setVolume(historicCandle.getVolume())
+                .setVolumeBuy(historicCandle.getVolumeBuy())
+                .setVolumeSell(historicCandle.getVolumeSell())
+                .setFigi(candleFigi)
+                .setTicker(candleTicker)
+                .setClassCode(candleClassCode)
+                .setCandleSourceType(historicCandle.getCandleSource());
         return new CandleWrapper(candle.build(), true);
     }
 
-    private record CandleKey(
+    private CandleWrapper toHistoryWrapper(CandleWrapper candleWrapper) {
+        return new CandleWrapper(candleWrapper.getOriginal(), true);
+    }
+
+    private record InstrIdResponseType(
             String instrumentId,
-            SubscriptionInterval interval,
-            GetCandlesRequest.CandleSource candleSource,
-            boolean waitingClose
+            MarketDataResponseType responseType
     ) {
-        static CandleKey of(Instrument i, CandleSubscriptionSpec spec) {
-            return new CandleKey(
-                    i.getInstrumentId().id(),
-                    i.getSubscriptionInterval(),
-                    spec.getCandleSource(),
-                    spec.isWaitingClose()
+        static InstrIdResponseType of(MarketDataResponseType responseType, String instrumentId) {
+            return new InstrIdResponseType(instrumentId, responseType
             );
         }
-
-        static CandleKey of(String uid, SubscriptionInterval interval, CandleSubscriptionSpec spec) {
-            return new CandleKey(uid, interval, spec.getCandleSource(), spec.isWaitingClose());
-        }
     }
 
-    private record CandleMeta(String figi, String ticker, String classCode, CandleSource candleSource) {
+    private record TickerClassCode(String ticker, String classCode) {
     }
 
-    private static void setIfPresent(String value, Consumer<String> setter) {
-        if (value != null && !value.isBlank()) {
-            setter.accept(value);
+    private TickerClassCode splitTickerClassCode(String string) {
+        int i = (string == null) ? -1 : string.indexOf('_');
+        return (i < 0)
+                ? new TickerClassCode(string != null ? string : "", "")
+                : new TickerClassCode(string.substring(0, i), string.substring(i + 1));
+    }
+
+    protected <T extends ResponseWrapper<?>> void addWrapperListener(
+            List<OnNextListener<T>> listeners,
+            OnNextListener<T> listener
+    ) {
+        if (!listeners.contains(listener)) {
+            listeners.add(listener);
         }
     }
 }

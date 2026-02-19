@@ -2,6 +2,8 @@ package ru.ttech.piapi.core.impl.marketdata;
 
 import lombok.Getter;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
+import ru.ttech.piapi.core.connector.streaming.listeners.OnConnectListener;
+import ru.ttech.piapi.core.impl.wrapper.OnConnectEvent;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.LastPriceWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
@@ -27,7 +29,9 @@ public class MarketDataStreamWrapperConfiguration {
   private final List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners;
   private final List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners;
   @Getter
-  private final List<Runnable> onConnectListeners;
+  private final List<OnConnectListener<OnConnectEvent>> onConnectListeners;
+  @Getter
+  private final List<OnConnectListener<OnConnectEvent>> onConnectListenersBlockInstruments;
 
   public MarketDataStreamWrapperConfiguration(
     ScheduledExecutorService executorService,
@@ -37,7 +41,8 @@ public class MarketDataStreamWrapperConfiguration {
     List<OnNextListener<TradeWrapper>> onTradeListeners,
     List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners,
     List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners,
-    List<Runnable> onConnectListeners
+    List<OnConnectListener<OnConnectEvent>> onConnectListeners,
+    List<OnConnectListener<OnConnectEvent>> onConnectListenersBlockInstruments
   ) {
     this.executorService = executorService;
     this.onCandleListeners = onCandleListeners;
@@ -47,6 +52,7 @@ public class MarketDataStreamWrapperConfiguration {
     this.onOpenInterestListeners = onOpenInterestListeners;
     this.onTradingStatusListeners = onTradingStatusListeners;
     this.onConnectListeners = onConnectListeners;
+    this.onConnectListenersBlockInstruments = onConnectListenersBlockInstruments;
   }
 
   public MarketDataStreamConfiguration.Builder getStreamWrapperConfigBuilder() {
@@ -79,7 +85,8 @@ public class MarketDataStreamWrapperConfiguration {
     private final List<OnNextListener<TradeWrapper>> onTradeListeners = new ArrayList<>();
     private final List<OnNextListener<OpenInterestWrapper>> onOpenInterestListeners = new ArrayList<>();
     private final List<OnNextListener<TradingStatusWrapper>> onTradingStatusListeners = new ArrayList<>();
-    private final List<Runnable> onConnectListeners = new ArrayList<>();
+    private final List<OnConnectListener<OnConnectEvent>> onConnectListeners = new ArrayList<>();
+    private final List<OnConnectListener<OnConnectEvent>> onConnectListenersBlockInstruments = new ArrayList<>();
 
     protected Builder(ScheduledExecutorService executorService) {
       this.executorService = executorService;
@@ -178,15 +185,20 @@ public class MarketDataStreamWrapperConfiguration {
      *                                                   }</pre>
      * @return Билдер конфигурации обёртки над стримом
      */
-    public Builder addOnConnectListener(Runnable onConnectListener) {
+    public Builder addOnConnectListener(OnConnectListener<OnConnectEvent> onConnectListener) {
       onConnectListeners.add(onConnectListener);
+      return this;
+    }
+
+    public Builder addOnConnectListenersBlockInstruments(OnConnectListener<OnConnectEvent> onConnectListener) {
+      onConnectListenersBlockInstruments.add(onConnectListener);
       return this;
     }
 
     public MarketDataStreamWrapperConfiguration build() {
       return new MarketDataStreamWrapperConfiguration(
         executorService, onCandleListeners, onLastPriceListeners, onOrderBookListeners, onTradeListeners,
-        onOpenInterestListeners, onTradingStatusListeners, onConnectListeners
+        onOpenInterestListeners, onTradingStatusListeners, onConnectListeners, onConnectListenersBlockInstruments
       );
     }
   }

@@ -2,6 +2,8 @@ package ru.ttech.piapi.core.impl.marketdata;
 
 import lombok.Getter;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
+import ru.ttech.piapi.core.connector.streaming.listeners.OnConnectListener;
+import ru.ttech.piapi.core.impl.wrapper.OnConnectEvent;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.LastPriceWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.OpenInterestWrapper;
@@ -36,7 +38,8 @@ public class MarketDataStreamContext {
   private final BlockingQueue<OpenInterestWrapper> openInterestsQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<OrderBookWrapper> orderBooksQueue = new LinkedBlockingQueue<>();
   private final BlockingQueue<TradingStatusWrapper> tradingStatusesQueue = new LinkedBlockingQueue<>();
-  private final List<Runnable> onConnectListeners = Collections.synchronizedList(new ArrayList<>());
+  private final List<OnConnectListener<OnConnectEvent>> onConnectListeners = Collections.synchronizedList(new ArrayList<>());
+  private final List<OnConnectListener<OnConnectEvent>> onConnectListenersBlockInstruments = Collections.synchronizedList(new ArrayList<>());
 
   @SuppressWarnings("ResultOfMethodCallIgnored")
   public MarketDataStreamContext() {

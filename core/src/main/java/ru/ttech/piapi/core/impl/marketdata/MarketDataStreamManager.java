@@ -10,10 +10,13 @@ import ru.tinkoff.piapi.contract.v1.TradeSourceType;
 import ru.ttech.piapi.core.connector.ConnectorConfiguration;
 import ru.ttech.piapi.core.connector.streaming.StreamServiceStubFactory;
 import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
+import ru.ttech.piapi.core.connector.streaming.listeners.OnConnectListener;
+import ru.ttech.piapi.core.impl.wrapper.OnConnectEvent;
 import ru.ttech.piapi.core.impl.marketdata.subscription.CandleSubscriptionSpec;
 import ru.ttech.piapi.core.impl.marketdata.subscription.Instrument;
 import ru.ttech.piapi.core.impl.marketdata.subscription.MarketDataSubscriptionResult;
 import ru.ttech.piapi.core.impl.marketdata.subscription.RequestAction;
+import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionEntry;
 import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionStatus;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataRequestBuilder;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.CandleWrapper;
@@ -24,6 +27,7 @@ import ru.ttech.piapi.core.impl.marketdata.wrapper.TradeWrapper;
 import ru.ttech.piapi.core.impl.marketdata.wrapper.TradingStatusWrapper;
 import ru.ttech.piapi.core.impl.wrapper.ResponseWrapper;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -448,9 +453,15 @@ public class MarketDataStreamManager {
       });
   }
 
-  protected void addOnConnectListener(Runnable listener) {
+  protected void addOnConnectListener(OnConnectListener<OnConnectEvent> listener) {
     if (!context.getOnConnectListeners().contains(listener)) {
       context.getOnConnectListeners().add(listener);
+    }
+  }
+
+  protected void addOnConnectListenersBlockInstruments(OnConnectListener<OnConnectEvent> listener) {
+    if (!context.getOnConnectListenersBlockInstruments().contains(listener)) {
+      context.getOnConnectListenersBlockInstruments().add(listener);
     }
   }
 
@@ -464,8 +475,31 @@ public class MarketDataStreamManager {
       .addOnTradingStatusListener(context.getGlobalOnTradingStatusesListener());
 
     context.getOnConnectListeners().forEach(configurationBuilder::addOnConnectListener);
+    context.getOnConnectListenersBlockInstruments().forEach(configurationBuilder::addOnConnectListenersBlockInstruments);
     var configuration = configurationBuilder.build();
     return new MarketDataStreamWrapper(streamFactory, configuration);
+  }
+
+  protected Set<SubscriptionEntry> getSubscriptionsByWrapperUuid(UUID wrapperUuid) {
+    return streamWrappers.stream()
+      .filter(wrapper -> wrapper.getUuid().equals(wrapperUuid))
+      .flatMap(wrapper -> wrapper.getSubscribedEntries(MarketDataResponseType.CANDLE)
+        .stream())
+      .collect(Collectors.toSet());
+  }
+
+  protected void setLastReceiveTimeByWrapperUuid(Instrument instrument, LocalDateTime lastReceiveTime, UUID wrapperUuid) {
+    streamWrappers.stream()
+      .filter(wrapper -> wrapper.getUuid().equals(wrapperUuid))
+      .findFirst()
+      .ifPresent(wrapper -> wrapper.updateLastReceiveTime(instrument, lastReceiveTime));
+  }
+
+  protected void setNeedToUpdateReceiveTimeByWrapperUuid(boolean updateReceiveTime, UUID wrapperUuid) {
+    streamWrappers.stream()
+      .filter(wrapper -> wrapper.getUuid().equals(wrapperUuid))
+      .findFirst()
+      .ifPresent(wrapper -> wrapper.setNeedToUpdateReceiveTime(updateReceiveTime));
   }
 
   protected <T extends ResponseWrapper<?>> void startListenersProcessing(

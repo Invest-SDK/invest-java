@@ -2,6 +2,7 @@ package ru.ttech.piapi.core.impl.marketdata;
 
 import io.vavr.Lazy;
 import io.vavr.collection.List;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.tinkoff.piapi.contract.v1.MarketDataRequest;
@@ -10,12 +11,19 @@ import ru.tinkoff.piapi.contract.v1.MarketDataStreamServiceGrpc;
 import ru.tinkoff.piapi.contract.v1.PingDelaySettings;
 import ru.ttech.piapi.core.connector.streaming.BidirectionalStreamWrapper;
 import ru.ttech.piapi.core.connector.streaming.StreamServiceStubFactory;
+import ru.ttech.piapi.core.connector.streaming.listeners.OnConnectListener;
+import ru.ttech.piapi.core.impl.wrapper.OnConnectEvent;
 import ru.ttech.piapi.core.impl.marketdata.subscription.Instrument;
 import ru.ttech.piapi.core.impl.marketdata.subscription.MarketDataSubscriptionResult;
 import ru.ttech.piapi.core.impl.marketdata.subscription.RequestAction;
+import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionEntry;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataRequestUtil;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataResponseUtil;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -40,11 +48,12 @@ public class MarketDataStreamWrapper {
 
   protected static final Logger logger = LoggerFactory.getLogger(MarketDataStreamWrapper.class);
 
+  @Getter
   private final UUID uuid = UUID.randomUUID();
   protected final AtomicLong lastInteractionTime = new AtomicLong();
   protected final LinkedBlockingQueue<MarketDataSubscriptionResult> subscriptionResultsQueue = new LinkedBlockingQueue<>();
   protected final AtomicInteger subscriptionsCount = new AtomicInteger(0);
-  protected final Map<MarketDataResponseType, Set<Instrument>> subscriptionsMap = Map.of(
+  protected final Map<MarketDataResponseType, Set<SubscriptionEntry>> subscriptionsMap = Map.of(
     MarketDataResponseType.CANDLE, ConcurrentHashMap.newKeySet(),
     MarketDataResponseType.LAST_PRICE, ConcurrentHashMap.newKeySet(),
     MarketDataResponseType.TRADE, ConcurrentHashMap.newKeySet(),
@@ -62,7 +71,10 @@ public class MarketDataStreamWrapper {
     MarketDataRequest,
     MarketDataResponse> streamWrapper;
   protected final ScheduledExecutorService executorService;
-  protected final List<Runnable> onConnectListeners;
+  protected final List<OnConnectListener<OnConnectEvent>> onConnectListeners;
+  protected final List<OnConnectListener<OnConnectEvent>> onConnectListenersBlockInstruments;
+  protected final AtomicBoolean needToRecovery = new AtomicBoolean(false);
+  protected final AtomicBoolean needToUpdateReceiveTime = new AtomicBoolean(true);
 
   public MarketDataStreamWrapper(
     StreamServiceStubFactory streamFactory,
@@ -72,6 +84,7 @@ public class MarketDataStreamWrapper {
       .addOnNextListener(this::processResponse)
       .build());
     this.onConnectListeners = List.ofAll(configuration.getOnConnectListeners());
+    this.onConnectListenersBlockInstruments = List.ofAll(configuration.getOnConnectListenersBlockInstruments());
     this.executorService = configuration.getExecutorService();
     this.inactivityTimeout = streamFactory.getServiceStubFactory().getConfiguration().getStreamInactivityTimeout();
     this.pingDelay = streamFactory.getServiceStubFactory().getConfiguration().getStreamPingDelay();
@@ -153,7 +166,24 @@ public class MarketDataStreamWrapper {
 
   protected void processResponse(MarketDataResponse response) {
     lastInteractionTime.set(System.currentTimeMillis());
-    MarketDataResponseUtil.getSubscriptionResultFromResponse(response).ifPresent(this::processSubscriptionResult);
+    if (needToUpdateReceiveTime.get()) {
+    MarketDataResponseUtil.getResponseType(response).ifPresent(responseType ->
+      MarketDataResponseUtil.extractInstrument(response).ifPresent(instrument -> {
+        var entries = subscriptionsMap.get(responseType);
+        if (entries != null) {
+          entries.stream()
+            .filter(entry -> entry.subscriptionEquals(instrument))
+            .findFirst()
+            .ifPresent(entry -> entry.updateLastUpdateTime(Instant.now()
+            .atOffset(ZoneOffset.UTC)
+            .toLocalDateTime().truncatedTo(ChronoUnit.SECONDS)));
+        }
+      })
+    );
+    }
+
+    MarketDataResponseUtil.getSubscriptionResultFromResponse(response)
+      .ifPresent(this::processSubscriptionResult);
   }
 
   protected void processSubscriptionResult(MarketDataSubscriptionResult subscriptionResult) {
@@ -163,7 +193,7 @@ public class MarketDataStreamWrapper {
         sendPingSettings();
         if (healthCheckFutureRef.get() == null) {
           logger.debug("Healthcheck enabled in wrapper {}", uuid);
-          onConnectListeners.forEach(Runnable::run);
+          //onConnectListeners.forEach(Runnable::run);
           healthCheckFutureRef.set(executorService.scheduleAtFixedRate(this::healthCheck, 0, pingDelay, TimeUnit.MILLISECONDS));
         }
       } else if (!isResubscribing.get() && healthCheckFutureRef.get() != null) {
@@ -185,11 +215,11 @@ public class MarketDataStreamWrapper {
    * @return true, если подписка есть, false - если нет
    */
   public boolean isSubscribed(MarketDataResponseType responseType, Instrument instrument) {
-    return getSubscribedInstruments(responseType).stream()
-      .anyMatch(subscribedInstrument -> subscribedInstrument.subscriptionEquals(instrument));
+    return getSubscribedEntries(responseType).stream()
+      .anyMatch(entry -> entry.subscriptionEquals(instrument));
   }
 
-  protected Set<Instrument> getSubscribedInstruments(MarketDataResponseType responseType) {
+  protected Set<SubscriptionEntry> getSubscribedEntries(MarketDataResponseType responseType) {
     if (!subscriptionsMap.containsKey(responseType)) {
       throw new IllegalArgumentException("Unsupported response type: " + responseType);
     }
@@ -203,7 +233,7 @@ public class MarketDataStreamWrapper {
    */
   protected void updateSubscriptionsMap(MarketDataSubscriptionResult subscriptionResult) {
     var currentAction = subscriptionResult.getSubscriptionAction();
-    var subscribedInstruments = getSubscribedInstruments(subscriptionResult.getResponseType());
+    var subscribedInstruments = getSubscribedEntries(subscriptionResult.getResponseType());
     var errorResults = subscriptionResult.getSubscriptionStatusMap().entrySet().stream()
       .filter(entry ->  entry.getValue().isError())
       .map(Map.Entry::getKey)
@@ -220,12 +250,31 @@ public class MarketDataStreamWrapper {
       .map(Map.Entry::getKey)
       .collect(Collectors.toSet());
     if (currentAction == RequestAction.SUBSCRIBE) {
-      subscribedInstruments.addAll(successResults);
+      successResults.forEach(instr -> {
+        SubscriptionEntry probe = new SubscriptionEntry(instr);
+
+        if (!subscribedInstruments.add(probe)) {
+          setInstrumentActive(instr, subscribedInstruments);
+        }
+      });
+
     } else if (currentAction == RequestAction.UNSUBSCRIBE) {
-      successResults.forEach(subscribedInstruments::remove);
+      successResults.forEach(instr ->
+        subscribedInstruments.removeIf(entry -> entry.subscriptionEquals(instr))
+      );
+
     }
-    errorResults.forEach(subscribedInstruments::remove);
+    errorResults.forEach(instr ->
+      subscribedInstruments.removeIf(entry -> entry.subscriptionEquals(instr))
+    );
     updateSubscriptionsCount();
+  }
+
+  private static void setInstrumentActive(Instrument instr, Set<SubscriptionEntry> subscribedInstruments) {
+    subscribedInstruments.stream()
+      .filter(entry -> entry.subscriptionEquals(instr))
+      .findFirst()
+      .ifPresent(entry -> entry.setActive(true));
   }
 
   /**
@@ -242,15 +291,44 @@ public class MarketDataStreamWrapper {
     boolean timeoutExceeded = currentTime - lastInteractionTime.get() > inactivityTimeout;
     if (timeoutExceeded && subscriptionsCount.get() > 0) {
       logger.info("Wrapper {} reconnecting...", uuid);
+      needToUpdateReceiveTime.set(false);
+      onConnectListenersBlockInstruments.forEach(
+        onConnectListener -> {
+          var action = OnConnectEvent.builder()
+            .id(uuid)
+            .build();
+          onConnectListener.onConnect(action);
+        });
+      needToRecovery.set(true);
       disconnectWrapper();
       isResubscribing.set(true);
+      setSubscriptionsNonActive();
       requestsRef.get().forEach(request -> newCall(request).join());
       isResubscribing.set(false);
       lastInteractionTime.set(System.currentTimeMillis());
-      if (subscriptionsCount.get() > 0) {
-        onConnectListeners.forEach(Runnable::run);
+    }
+    if (needToRecovery.get()){
+      var subscriptionsActiveCount = subscriptionsActiveCount();
+      if (subscriptionsCount.get() > 0 && subscriptionsActiveCount == subscriptionsCount.get()) {
+        needToRecovery.set(false);
+        onConnectListeners.forEach(
+          onConnectListener -> {
+            var action = OnConnectEvent.builder()
+              .id(uuid)
+              .build();
+            onConnectListener.onConnect(action);
+          });
       }
     }
+  }
+
+  private long subscriptionsActiveCount() {
+    return subscriptionsMap.values().stream().flatMap(Set::stream).filter(SubscriptionEntry::isActive).count();
+  }
+
+  private void setSubscriptionsNonActive() {
+    subscriptionsMap.values().forEach(set ->
+      set.forEach(value -> value.setActive(false)));
   }
 
   private boolean checkSubscribedInstruments(
@@ -274,6 +352,18 @@ public class MarketDataStreamWrapper {
       .count();
 
     return matchedCount == subscribedInstruments.size();
+  }
+
+  protected void updateLastReceiveTime(Instrument instrument, LocalDateTime lastReceiveTime) {
+    subscriptionsMap.values().stream()
+      .flatMap(Set::stream)
+      .filter(entry -> entry.subscriptionEquals(instrument))
+      .findFirst()
+      .ifPresent(entry -> entry.updateLastUpdateTime(lastReceiveTime));
+  }
+
+  protected void setNeedToUpdateReceiveTime(boolean updateTime) {
+    needToUpdateReceiveTime.set(updateTime);
   }
 
   public int getSubscriptionsCount() {

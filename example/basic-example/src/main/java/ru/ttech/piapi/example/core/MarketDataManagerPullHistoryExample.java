@@ -28,9 +28,9 @@ public class MarketDataManagerPullHistoryExample {
       var unaryServiceFactory = ServiceStubFactory.create(configuration);
       var instrumentsService = unaryServiceFactory.newSyncService(InstrumentsServiceGrpc::newBlockingStub);
       var instrumentsMap = Map.of(
-        "SBERP", "TQBR",
-        "YDEX", "TQBR",
-        "FIXR", "TQBR"
+              "SBER", "TQBR",
+              "YDEX", "TQBR",
+              "SBERP", "TQBR"
       );
       var instruments = instrumentsMap.entrySet().stream().map(entry -> {
         var request = InstrumentRequest.newBuilder()
