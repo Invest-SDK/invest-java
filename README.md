@@ -34,7 +34,7 @@
 
 #### JVM
 Шаги для сборки:
-1) скачать репозиторий ```git pull https://github.com/RussianInvestments/invest-api-java-sdk.git```
+1) скачать репозиторий ```git pull https://opensource.tbank.ru/invest/invest-java.git```
 2) перейдите в директорию проекта командой ```cd invest-api-java-sdk```
 3) для сборки перейдите в директорию проекта и соберите проект командой ```mvn clean package```
 

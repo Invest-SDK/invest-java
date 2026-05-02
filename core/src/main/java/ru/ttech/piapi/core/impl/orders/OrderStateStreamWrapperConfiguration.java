@@ -11,6 +11,7 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -19,6 +20,10 @@ import java.util.function.Function;
  * Конфигурация для обёртки {@link ResilienceServerSideStreamWrapper} над стримом ордеров сервиса {@link OrdersStreamServiceGrpc}
  */
 public class OrderStateStreamWrapperConfiguration extends ResilienceServerSideStreamWrapperConfiguration<OrderStateStreamRequest, OrderStateStreamResponse> {
+
+  private static final Set<OrderStateStreamResponse.PayloadCase> RESPONSE_PAYLOAD = Set.of(
+    OrderStateStreamResponse.PayloadCase.ORDER_STATE
+  );
 
   protected OrderStateStreamWrapperConfiguration(
     ScheduledExecutorService executorService,
@@ -32,13 +37,15 @@ public class OrderStateStreamWrapperConfiguration extends ResilienceServerSideSt
   public Function<OrderStateStreamRequest,
     ServerSideStreamConfiguration.Builder<?, OrderStateStreamRequest, OrderStateStreamResponse>> getConfigurationBuilder(int pingDelay) {
     return request -> {
-      var requestWithPing = OrderStateStreamRequest.newBuilder(request).setPingDelayMillis(pingDelay).build();
+      var requestWithPing = OrderStateStreamRequest.newBuilder(request)
+        .setPingDelayMillis(pingDelay)
+        .build();
       return ServerSideStreamConfiguration.builder(
           OrdersStreamServiceGrpc::newStub,
           OrdersStreamServiceGrpc.getOrderStateStreamMethod(),
           (stub, observer) -> stub.orderStateStream(requestWithPing, observer))
         .addOnNextListener(response -> {
-          if (response.hasOrderState()) {
+          if (RESPONSE_PAYLOAD.contains(response.getPayloadCase())) {
             onResponseListeners.forEach(listener -> listener.onNext(response));
           }
         });

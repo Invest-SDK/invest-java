@@ -11,6 +11,7 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -20,6 +21,9 @@ import java.util.function.Function;
  */
 public class OperationsStreamWrapperConfiguration extends ResilienceServerSideStreamWrapperConfiguration<OperationsStreamRequest, OperationsStreamResponse> {
 
+  private static final Set<OperationsStreamResponse.PayloadCase> RESPONSE_PAYLOAD = Set.of(
+    OperationsStreamResponse.PayloadCase.OPERATION
+  );
 
   protected OperationsStreamWrapperConfiguration(
     ScheduledExecutorService executorService,
@@ -34,14 +38,16 @@ public class OperationsStreamWrapperConfiguration extends ResilienceServerSideSt
     ServerSideStreamConfiguration.Builder<?, OperationsStreamRequest, OperationsStreamResponse>> getConfigurationBuilder(int pingDelay) {
     return request -> {
       var requestWithPing = OperationsStreamRequest.newBuilder(request)
-        .setPingSettings(PingDelaySettings.newBuilder().setPingDelayMs(pingDelay).build())
+        .setPingSettings(PingDelaySettings.newBuilder()
+          .setPingDelayMs(pingDelay)
+          .build())
         .build();
       return ServerSideStreamConfiguration.builder(
           OperationsStreamServiceGrpc::newStub,
           OperationsStreamServiceGrpc.getOperationsStreamMethod(),
           (stub, observer) -> stub.operationsStream(requestWithPing, observer))
         .addOnNextListener(response -> {
-          if (response.hasOperation()) {
+          if (RESPONSE_PAYLOAD.contains(response.getPayloadCase())) {
             onResponseListeners.forEach(listener -> listener.onNext(response));
           }
         });

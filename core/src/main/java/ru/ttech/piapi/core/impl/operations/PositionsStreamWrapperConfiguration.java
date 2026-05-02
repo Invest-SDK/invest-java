@@ -1,6 +1,7 @@
 package ru.ttech.piapi.core.impl.operations;
 
 import ru.tinkoff.piapi.contract.v1.OperationsStreamServiceGrpc;
+import ru.tinkoff.piapi.contract.v1.PingDelaySettings;
 import ru.tinkoff.piapi.contract.v1.PositionsAccountSubscriptionStatus;
 import ru.tinkoff.piapi.contract.v1.PositionsStreamRequest;
 import ru.tinkoff.piapi.contract.v1.PositionsStreamResponse;
@@ -12,15 +13,20 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Конфигурация для обёртки {@link ResilienceServerSideStreamWrapper} над стримом позиций сервиса {@link OperationsStreamServiceGrpc}
  */
 public class PositionsStreamWrapperConfiguration extends ResilienceServerSideStreamWrapperConfiguration<PositionsStreamRequest, PositionsStreamResponse> {
+
+  private static final Set<PositionsStreamResponse.PayloadCase> RESPONSE_PAYLOAD = Set.of(
+    PositionsStreamResponse.PayloadCase.INITIAL_POSITIONS,
+    PositionsStreamResponse.PayloadCase.POSITION
+  );
 
   protected PositionsStreamWrapperConfiguration(
     ScheduledExecutorService executorService,
@@ -33,7 +39,22 @@ public class PositionsStreamWrapperConfiguration extends ResilienceServerSideStr
   @Override
   public Function<PositionsStreamRequest,
     ServerSideStreamConfiguration.Builder<?, PositionsStreamRequest, PositionsStreamResponse>> getConfigurationBuilder(int pingDelay) {
-    return null;
+    return request -> {
+      var requestWithPing = PositionsStreamRequest.newBuilder(request)
+        .setPingSettings(PingDelaySettings.newBuilder()
+          .setPingDelayMs(pingDelay)
+          .build())
+        .build();
+      return ServerSideStreamConfiguration.builder(
+        OperationsStreamServiceGrpc::newStub,
+        OperationsStreamServiceGrpc.getPositionsStreamMethod(),
+        (stub, observer) -> stub.positionsStream(requestWithPing, observer))
+        .addOnNextListener(response -> {
+          if (RESPONSE_PAYLOAD.contains(response.getPayloadCase())) {
+            onResponseListeners.forEach(listener -> listener.onNext(response));
+          }
+        });
+    };
   }
 
   @Override

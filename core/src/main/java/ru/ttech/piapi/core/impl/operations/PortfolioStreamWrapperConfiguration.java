@@ -13,15 +13,19 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Конфигурация для обёртки {@link ResilienceServerSideStreamWrapper} над стримом портфеля сервиса {@link OperationsStreamServiceGrpc}
  */
 public class PortfolioStreamWrapperConfiguration extends ResilienceServerSideStreamWrapperConfiguration<PortfolioStreamRequest, PortfolioStreamResponse> {
+
+  private static final Set<PortfolioStreamResponse.PayloadCase> RESPONSE_PAYLOAD = Set.of(
+    PortfolioStreamResponse.PayloadCase.PORTFOLIO
+  );
 
   protected PortfolioStreamWrapperConfiguration(
     ScheduledExecutorService executorService,
@@ -36,14 +40,16 @@ public class PortfolioStreamWrapperConfiguration extends ResilienceServerSideStr
     ServerSideStreamConfiguration.Builder<?, PortfolioStreamRequest, PortfolioStreamResponse>> getConfigurationBuilder(int pingDelay) {
     return request -> {
       var requestWithPing = PortfolioStreamRequest.newBuilder(request)
-        .setPingSettings(PingDelaySettings.newBuilder().setPingDelayMs(pingDelay).build())
+        .setPingSettings(PingDelaySettings.newBuilder()
+          .setPingDelayMs(pingDelay)
+          .build())
         .build();
       return ServerSideStreamConfiguration.builder(
           OperationsStreamServiceGrpc::newStub,
           OperationsStreamServiceGrpc.getPortfolioStreamMethod(),
           (stub, observer) -> stub.portfolioStream(requestWithPing, observer))
         .addOnNextListener(response -> {
-          if (response.hasPortfolio()) {
+          if (RESPONSE_PAYLOAD.contains(response.getPayloadCase())) {
             onResponseListeners.forEach(listener -> listener.onNext(response));
           }
         });

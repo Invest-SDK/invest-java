@@ -11,6 +11,7 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnNextListener;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -19,6 +20,10 @@ import java.util.function.Function;
  * Конфигурация для обёртки {@link ResilienceServerSideStreamWrapper} над стримом сделок сервиса {@link OrdersStreamServiceGrpc}
  */
 public class TradeStreamWrapperConfiguration extends ResilienceServerSideStreamWrapperConfiguration<TradesStreamRequest, TradesStreamResponse> {
+
+  private static final Set<TradesStreamResponse.PayloadCase> RESPONSE_PAYLOAD = Set.of(
+    TradesStreamResponse.PayloadCase.ORDER_TRADES
+  );
 
   protected TradeStreamWrapperConfiguration(
     ScheduledExecutorService executorService,
@@ -32,13 +37,15 @@ public class TradeStreamWrapperConfiguration extends ResilienceServerSideStreamW
   public Function<TradesStreamRequest,
     ServerSideStreamConfiguration.Builder<?, TradesStreamRequest, TradesStreamResponse>> getConfigurationBuilder(int pingDelay) {
     return request -> {
-      var requestWithPing = TradesStreamRequest.newBuilder(request).setPingDelayMs(pingDelay).build();
+      var requestWithPing = TradesStreamRequest.newBuilder(request)
+        .setPingDelayMs(pingDelay)
+        .build();
       return ServerSideStreamConfiguration.builder(
           OrdersStreamServiceGrpc::newStub,
           OrdersStreamServiceGrpc.getTradesStreamMethod(),
           (stub, observer) -> stub.tradesStream(requestWithPing, observer))
         .addOnNextListener(response -> {
-          if (response.hasOrderTrades()) {
+          if (RESPONSE_PAYLOAD.contains(response.getPayloadCase())) {
             onResponseListeners.forEach(listener -> listener.onNext(response));
           }
         });
