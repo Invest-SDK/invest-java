@@ -22,7 +22,8 @@ import java.util.function.Function;
 public class OrderStateStreamWrapperConfiguration extends ResilienceServerSideStreamWrapperConfiguration<OrderStateStreamRequest, OrderStateStreamResponse> {
 
   private static final Set<OrderStateStreamResponse.PayloadCase> RESPONSE_PAYLOAD = Set.of(
-    OrderStateStreamResponse.PayloadCase.ORDER_STATE
+    OrderStateStreamResponse.PayloadCase.ORDER_STATE,
+    OrderStateStreamResponse.PayloadCase.STOP_ORDER_STATE
   );
 
   protected OrderStateStreamWrapperConfiguration(
