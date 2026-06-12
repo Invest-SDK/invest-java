@@ -23,14 +23,15 @@ public class ConnectorConfiguration {
   private static final String MAX_ATTEMPTS_PROPERTY_NAME = "connection.retry.max-attempts";
   private static final String WAIT_DURATION_PROPERTY_NAME = "connection.retry.wait-duration";
   private static final String MAX_INBOUND_MESSAGE_SIZE_PROPERTY_NAME = "connection.max-message-size";
+  private static final String SSL_INSECURE_PROPERTY_NAME = "connection.ssl.insecure";
   private static final String GRPC_DEBUG_PROPERTY_NAME = "grpc.debug";
   private static final String GRPC_CONTEXT_FORK_PROPERTY_NAME = "grpc.context-fork";
   private static final String MARKET_DATA_MAX_STREAMS_COUNT = "stream.market-data.max-streams-count";
   private static final String MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT = "stream.market-data.max-subscriptions-count";
   private static final String INACTIVITY_TIMEOUT_PROPERTY_NAME = "stream.inactivity-timeout";
   private static final String STREAM_PING_DELAY_PROPERTY_NAME = "stream.ping-delay";
-  private static final String DEFAULT_TARGET = "invest-public-api.tinkoff.ru:443";
-  private static final String DEFAULT_SANDBOX_TARGET = "sandbox-invest-public-api.tinkoff.ru:443";
+  private static final String DEFAULT_TARGET = "invest-public-api.tbank.ru:443";
+  private static final String DEFAULT_SANDBOX_TARGET = "sandbox-invest-public-api.tbank.ru:443";
   private static final String DEFAULT_SANDBOX_ENABLED = "false";
   private static final String DEFAULT_APP_NAME = "tinkoff.invest-api-java-sdk";
   private static final String DEFAULT_TIMEOUT = "30000";
@@ -40,6 +41,7 @@ public class ConnectorConfiguration {
   private static final String DEFAULT_MAX_INBOUND_MESSAGE_SIZE = "16777216";
   private static final String DEFAULT_GRPC_DEBUG = "false";
   private static final String DEFAULT_GRPC_CONTEXT_FORK = "false";
+  private static final String DEFAULT_SSL_INSECURE = "true";
   private static final String DEFAULT_MARKET_DATA_MAX_STREAMS_COUNT = "16";
   private static final String DEFAULT_MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT = "300";
   private static final String DEFAULT_INACTIVITY_TIMEOUT = "15000";
@@ -55,6 +57,7 @@ public class ConnectorConfiguration {
   private final int maxAttempts;
   private final int waitDuration;
   private final int maxInboundMessageSize;
+  private final boolean sslInsecure;
   private final boolean grpcDebug;
   private final boolean grpcContextFork;
   private final int maxMarketDataStreamsCount;
@@ -64,7 +67,7 @@ public class ConnectorConfiguration {
 
   private ConnectorConfiguration(
     String token, String appName, String targetUrl, String sandboxTargetUrl, boolean sandboxEnabled, int timeout,
-    int keepalive, int maxAttempts, int waitDuration, int maxInboundMessageSize, boolean grpcDebug,
+    int keepalive, int maxAttempts, int waitDuration, int maxInboundMessageSize, boolean sslInsecure, boolean grpcDebug,
     boolean grpcContextFork, int maxMarketDataStreamsCount, int maxMarketDataSubscriptionsCount,
     int streamInactivityTimeout, int streamPingDelay
   ) {
@@ -78,6 +81,7 @@ public class ConnectorConfiguration {
     this.maxAttempts = maxAttempts;
     this.waitDuration = waitDuration;
     this.maxInboundMessageSize = maxInboundMessageSize;
+    this.sslInsecure = sslInsecure;
     this.grpcDebug = grpcDebug;
     this.grpcContextFork = grpcContextFork;
     this.maxMarketDataStreamsCount = maxMarketDataStreamsCount;
@@ -109,6 +113,8 @@ public class ConnectorConfiguration {
     int waitDuration = Integer.parseInt(properties.getProperty(WAIT_DURATION_PROPERTY_NAME, DEFAULT_WAIT_DURATION));
     int maxInboundMessageSize = Integer.parseInt(
       properties.getProperty(MAX_INBOUND_MESSAGE_SIZE_PROPERTY_NAME, DEFAULT_MAX_INBOUND_MESSAGE_SIZE));
+    boolean sslInsecure = Boolean.parseBoolean(
+      properties.getProperty(SSL_INSECURE_PROPERTY_NAME, DEFAULT_SSL_INSECURE));
     boolean grpcDebug = Boolean.parseBoolean(properties.getProperty(GRPC_DEBUG_PROPERTY_NAME, DEFAULT_GRPC_DEBUG));
     boolean grpcContextFork = Boolean.parseBoolean(
       properties.getProperty(GRPC_CONTEXT_FORK_PROPERTY_NAME, DEFAULT_GRPC_CONTEXT_FORK));
@@ -122,8 +128,8 @@ public class ConnectorConfiguration {
       properties.getProperty(STREAM_PING_DELAY_PROPERTY_NAME, DEFAULT_STREAM_PING_DELAY));
     return new ConnectorConfiguration(
       token, appName, targetUrl, sandboxTargetUrl, sandboxEnabled, timeout, keepalive, maxAttempts, waitDuration,
-      maxInboundMessageSize, grpcDebug, grpcContextFork, maxMarketDataStreamsCount, maxMarketDataSubscriptionsCount,
-      inactivityTimeout, streamPingDelay
+      maxInboundMessageSize, sslInsecure, grpcDebug, grpcContextFork, maxMarketDataStreamsCount,
+      maxMarketDataSubscriptionsCount, inactivityTimeout, streamPingDelay
     );
   }
 

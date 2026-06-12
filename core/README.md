@@ -97,13 +97,14 @@ implementation 'ru.tinkoff.piapi:java-sdk-core:1.40'
 token=t.*****
 connection.timeout=30000
 connection.keepalive=60000
+connection.ssl.insecure=true
 connection.max-message-size=16777216
 connection.retry.max-attempts=3
 connection.retry.wait-duration=2000
 grpc.debug=false
 grpc.context-fork=true
-target=invest-public-api.tinkoff.ru:443
-sandbox.target=sandbox-invest-public-api.tinkoff.ru:443
+target=invest-public-api.tbank.ru:443
+sandbox.target=sandbox-invest-public-api.tbank.ru:443
 sandbox.enabled=false
 stream.market-data.max-streams-count=16
 stream.market-data.max-subscriptions-count=300
@@ -119,6 +120,7 @@ stream.ping-delay=5000
 * `connection.max-message-size` - максимальный размер сообщения в байтах
 * `connection.retry.max-attempts` - максимальное количество попыток отправки запроса
 * `connection.retry.wait-duration` - интервал ожидания между попытками отправки запроса в миллисекундах
+* `connection.ssl.insecure` - опция для включения/отключения проверки SSL-сертификата
 * `grpc.debug` - включение отладочной информации
 * `grpc.context-fork` - включение форка контекста
 * `target` - URL API Т-Инвестиций

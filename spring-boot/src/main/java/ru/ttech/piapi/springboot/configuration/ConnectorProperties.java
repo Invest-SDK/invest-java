@@ -74,6 +74,10 @@ public class ConnectorProperties {
      * Максимальный размер сообщения
      */
     private Integer maxMessageSize;
+    /**
+     * Отключение проверки подлинности SSL сертификата
+     */
+    private Boolean sslInsecure;
 
     @Getter
     @Setter
@@ -152,6 +156,8 @@ public class ConnectorProperties {
       .ifPresent(maxAttempts -> properties.setProperty("connection.retry.max-attempts", String.valueOf(maxAttempts)));
     Optional.ofNullable(connection.getMaxMessageSize())
       .ifPresent(maxMessageSize -> properties.setProperty("connection.max-message-size", String.valueOf(maxMessageSize)));
+    Optional.ofNullable(connection.getSslInsecure())
+      .ifPresent(sslInsecure -> properties.setProperty("connection.ssl.insecure", String.valueOf(sslInsecure)));
     Optional.ofNullable(grpc.getDebug())
       .ifPresent(debug -> properties.setProperty("grpc.debug", String.valueOf(debug)));
     Optional.ofNullable(grpc.getContextFork())

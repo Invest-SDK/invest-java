@@ -4,6 +4,7 @@ import com.google.common.net.HttpHeaders;
 import io.github.resilience4j.decorators.Decorators;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
+import io.vavr.control.Try;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -13,10 +14,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.ttech.piapi.core.connector.ConnectorConfiguration;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -28,10 +32,10 @@ import java.util.zip.ZipEntry;
 
 public class HistoryDataApiClient {
   private static final Logger logger = LoggerFactory.getLogger(HistoryDataApiClient.class);
-  private static final String HISTORY_DATA_URL = "https://invest-public-api.tinkoff.ru/history-data?instrumentId=%s&year=%d";
+  private static final String HISTORY_DATA_URL = "https://invest-public-api.tbank.ru/history-data?instrumentId=%s&year=%d";
   private static final String FILENAME_PATTERN = "%s_%d.zip";
   private static final DateTimeFormatter ZIP_ENTRY_DTE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
-  private static final OkHttpClient client = new OkHttpClient();
+  private final OkHttpClient client;
   private final String candlesDownloadPath;
   private final ConnectorConfiguration configuration;
   private final RateLimiterRegistry rateLimiterRegistry;
@@ -39,6 +43,7 @@ public class HistoryDataApiClient {
   public HistoryDataApiClient(String candlesDownloadPath, ConnectorConfiguration configuration) {
     this.candlesDownloadPath = candlesDownloadPath;
     this.configuration = configuration;
+    this.client = createHttpClient(configuration);
     this.rateLimiterRegistry = RateLimiterRegistry.custom()
       .withRateLimiterConfig(RateLimiterConfig.custom()
         .limitRefreshPeriod(Duration.ofMinutes(1))
@@ -98,12 +103,12 @@ public class HistoryDataApiClient {
     try (ZipFile zip = ZipFile.builder().setFile(fileName).get()) {
       var sortedEntries = Collections.list(zip.getEntries()).stream()
         .sorted(Comparator.comparing(ZipEntry::getName))
-        .collect(Collectors.toList());
-      var lastEntry = sortedEntries.get(sortedEntries.size() - 1);
+        .toList();
+      var lastEntry = sortedEntries.getLast();
       var instrumentUidAndDate = lastEntry.getName().split("_");
       if (instrumentUidAndDate.length == 2) {
         var date = instrumentUidAndDate[1].substring(0, 8);
-        if (LocalDate.parse(date, ZIP_ENTRY_DTE_FORMAT).plus(1, ChronoUnit.DAYS).equals(LocalDate.now())) {
+        if (LocalDate.parse(date, ZIP_ENTRY_DTE_FORMAT).plusDays(1).equals(LocalDate.now())) {
           logger.debug("File {} has up to date data, skipping download", fileName);
           return true;
         }
@@ -122,5 +127,27 @@ public class HistoryDataApiClient {
       return true;
     }
     return false;
+  }
+
+  private static OkHttpClient createHttpClient(ConnectorConfiguration configuration) {
+    var builder = new OkHttpClient.Builder();
+    if (configuration.isSslInsecure()) {
+      Try.of(() -> {
+          var trustAllCerts = new X509TrustManager[]{
+            new X509TrustManager() {
+              public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+              public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+              public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            }
+          };
+          var sslContext = SSLContext.getInstance("TLS");
+          sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+          return builder
+            .sslSocketFactory(sslContext.getSocketFactory(), trustAllCerts[0])
+            .hostnameVerifier((hostname, session) -> true);
+        })
+        .onFailure(ex -> logger.warn("Failed to configure insecure SSL for HTTP client, using default", ex));
+    }
+    return builder.build();
   }
 }

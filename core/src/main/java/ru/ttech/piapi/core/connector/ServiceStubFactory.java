@@ -4,14 +4,20 @@ import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.channel.ChannelOption;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.AbstractAsyncStub;
 import io.grpc.stub.AbstractBlockingStub;
 import io.grpc.stub.AbstractStub;
 import io.grpc.stub.MetadataUtils;
 import io.vavr.Lazy;
+import io.vavr.control.Option;
+import io.vavr.control.Try;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import ru.ttech.piapi.core.connector.internal.ErrorHubReportInterceptor;
 import ru.ttech.piapi.core.connector.internal.LoggingDebugInterceptor;
 import ru.ttech.piapi.core.connector.resilience.ResilienceAsyncStubWrapper;
@@ -28,6 +34,7 @@ import java.util.function.Supplier;
  * Фабрика для создания обёрток над унарными синхроными и асинхронными gRPC стабами
  * <p>Задаёт параметры для подключения gRPC стабов к API согласно переданной конфигурации
  */
+@Slf4j
 public class ServiceStubFactory {
 
   @Getter
@@ -143,19 +150,35 @@ public class ServiceStubFactory {
       : configuration.getTargetUrl();
   }
 
+  private static SslContext buildInsecureSslContext() {
+    return Try.of(() -> GrpcSslContexts.forClient()
+        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+        .build())
+      .getOrElseGet(ex -> {
+        log.warn("Failed to build insecure SSL context, falling back to default", ex);
+        return Try.of(() -> GrpcSslContexts.forClient().build())
+          .getOrNull();
+      });
+  }
+
   private static ManagedChannel createChannel(ConnectorConfiguration configuration) {
     var headers = new Metadata();
     addAuthHeader(headers, configuration.getToken());
     addAppNameHeader(headers, configuration.getAppName());
     String targetUrl = chooseTargetUrl(configuration);
-    return NettyChannelBuilder
+    var builder = NettyChannelBuilder
       .forTarget(targetUrl)
       .intercept(MetadataUtils.newAttachHeadersInterceptor(headers))
       .withOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, configuration.getTimeout())
       .keepAliveTimeout(configuration.getKeepalive(), TimeUnit.MILLISECONDS)
-      .maxInboundMessageSize(configuration.getMaxInboundMessageSize())
-      .useTransportSecurity()
-      .build();
+      .maxInboundMessageSize(configuration.getMaxInboundMessageSize());
+
+    if (configuration.isSslInsecure()) {
+      Option.of(buildInsecureSslContext())
+        .peek(builder::sslContext);
+    }
+
+    return builder.build();
   }
 
   private static void addAuthHeader(Metadata metadata, String token) {
