@@ -24,6 +24,8 @@ import ru.ttech.piapi.core.connector.resilience.ResilienceAsyncStubWrapper;
 import ru.ttech.piapi.core.connector.resilience.ResilienceConfiguration;
 import ru.ttech.piapi.core.connector.resilience.ResilienceSyncStubWrapper;
 
+import javax.net.ssl.TrustManagerFactory;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +33,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Фабрика для создания обёрток над унарными синхроными и асинхронными gRPC стабами
+ * Фабрика для создания обёрток над унарными синхронными и асинхронными gRPC стабами
  * <p>Задаёт параметры для подключения gRPC стабов к API согласно переданной конфигурации
  */
 @Slf4j
@@ -112,7 +114,7 @@ public class ServiceStubFactory {
   }
 
   /**
-   * Создааёт фабрику с параметрами подключения согласно конфигурации
+   * Создаёт фабрику с параметрами подключения согласно конфигурации
    *
    * @param configuration Конфигурация библиотеки
    * @return Фабрика для создания обёрток над стабами
@@ -150,6 +152,27 @@ public class ServiceStubFactory {
       : configuration.getTargetUrl();
   }
 
+  private static SslContext buildInternalSecuredSslContext(String jksClassPathLocation, String jksPassword) {
+    return Try.of(() -> {
+      try (var jksInputStream = ServiceStubFactory.class.getClassLoader().getResourceAsStream(jksClassPathLocation)) {
+        if (jksInputStream == null) {
+          throw new RuntimeException("JKS file not found");
+        }
+        var jksKeyStore = KeyStore.getInstance("JKS");
+        jksKeyStore.load(jksInputStream, jksPassword.toCharArray());
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(jksKeyStore);
+
+        return GrpcSslContexts.forClient().trustManager(tmf).build();
+      }
+    }).getOrElseGet(ex -> {
+      log.warn("Failed to build internal secured SSL context, falling back to default", ex);
+      return Try.of(() -> GrpcSslContexts.forClient().build())
+        .getOrNull();
+    });
+  }
+
   private static SslContext buildInsecureSslContext() {
     return Try.of(() -> GrpcSslContexts.forClient()
         .trustManager(InsecureTrustManagerFactory.INSTANCE)
@@ -173,9 +196,17 @@ public class ServiceStubFactory {
       .keepAliveTimeout(configuration.getKeepalive(), TimeUnit.MILLISECONDS)
       .maxInboundMessageSize(configuration.getMaxInboundMessageSize());
 
-    if (configuration.isSslInsecure()) {
-      Option.of(buildInsecureSslContext())
+    if (configuration.isSslSecureInternal()) {
+      Option.of(buildInternalSecuredSslContext(
+        configuration.getSslSecureInternalJksLocation(),
+        configuration.getSslSecureInternalJksPassword()
+      ))
         .peek(builder::sslContext);
+    } else {
+      if (configuration.isSslInsecure()) {
+        Option.of(buildInsecureSslContext())
+          .peek(builder::sslContext);
+      }
     }
 
     return builder.build();

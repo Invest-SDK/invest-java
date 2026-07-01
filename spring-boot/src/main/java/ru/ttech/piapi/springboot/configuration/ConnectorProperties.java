@@ -75,6 +75,10 @@ public class ConnectorProperties {
      */
     private Integer maxMessageSize;
     /**
+     * Использование внутреннего jks хранилища для проверки подлинности SSL сертификата
+     */
+    private Boolean sslInternalSecure;
+    /**
      * Отключение проверки подлинности SSL сертификата
      */
     private Boolean sslInsecure;
@@ -156,6 +160,8 @@ public class ConnectorProperties {
       .ifPresent(maxAttempts -> properties.setProperty("connection.retry.max-attempts", String.valueOf(maxAttempts)));
     Optional.ofNullable(connection.getMaxMessageSize())
       .ifPresent(maxMessageSize -> properties.setProperty("connection.max-message-size", String.valueOf(maxMessageSize)));
+    Optional.ofNullable(connection.getSslInternalSecure())
+      .ifPresent(sslInternalSecure -> properties.setProperty("connection.ssl.internal-secure", String.valueOf(sslInternalSecure)));
     Optional.ofNullable(connection.getSslInsecure())
       .ifPresent(sslInsecure -> properties.setProperty("connection.ssl.insecure", String.valueOf(sslInsecure)));
     Optional.ofNullable(grpc.getDebug())

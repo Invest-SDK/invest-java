@@ -13,21 +13,27 @@ import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.ttech.piapi.core.connector.ConnectorConfiguration;
+import ru.ttech.piapi.core.connector.ServiceStubFactory;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 
 public class HistoryDataApiClient {
@@ -131,23 +137,54 @@ public class HistoryDataApiClient {
 
   private static OkHttpClient createHttpClient(ConnectorConfiguration configuration) {
     var builder = new OkHttpClient.Builder();
-    if (configuration.isSslInsecure()) {
-      Try.of(() -> {
-          var trustAllCerts = new X509TrustManager[]{
-            new X509TrustManager() {
-              public void checkClientTrusted(X509Certificate[] chain, String authType) {}
-              public void checkServerTrusted(X509Certificate[] chain, String authType) {}
-              public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-            }
-          };
-          var sslContext = SSLContext.getInstance("TLS");
-          sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-          return builder
-            .sslSocketFactory(sslContext.getSocketFactory(), trustAllCerts[0])
-            .hostnameVerifier((hostname, session) -> true);
-        })
-        .onFailure(ex -> logger.warn("Failed to configure insecure SSL for HTTP client, using default", ex));
+    if (configuration.isSslSecureInternal()) {
+      Try.of(() -> enableInternalSslValidation(builder, configuration))
+        .onFailure(ex -> logger.warn("Failed to configure internal secured SSL for HTTP client, using default", ex));
+    } else {
+      if (configuration.isSslInsecure()) {
+        Try.of(() -> disableSslValidation(builder))
+          .onFailure(ex -> logger.warn("Failed to configure insecure SSL for HTTP client, using default", ex));
+      }
     }
     return builder.build();
+  }
+
+  private static OkHttpClient.Builder disableSslValidation(OkHttpClient.Builder builder) throws NoSuchAlgorithmException, KeyManagementException {
+    var trustAllCerts = new X509TrustManager[]{
+      new X509TrustManager() {
+        public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+        public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+        public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+      }
+    };
+    var sslContext = SSLContext.getInstance("TLS");
+    sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+    return builder
+      .sslSocketFactory(sslContext.getSocketFactory(), trustAllCerts[0])
+      .hostnameVerifier((hostname, session) -> true);
+  }
+
+  private static OkHttpClient.Builder enableInternalSslValidation(OkHttpClient.Builder builder, ConnectorConfiguration configuration) throws NoSuchAlgorithmException, KeyManagementException, IOException, KeyStoreException, CertificateException {
+    try (var jksInputStream = ServiceStubFactory.class.getClassLoader().getResourceAsStream(configuration.getSslSecureInternalJksLocation())) {
+      if (jksInputStream == null) {
+        throw new RuntimeException("JKS file not found");
+      }
+      var jksKeyStore = KeyStore.getInstance("JKS");
+      jksKeyStore.load(jksInputStream, configuration.getSslSecureInternalJksPassword().toCharArray());
+
+      TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+      tmf.init(jksKeyStore);
+
+      var sslContext = SSLContext.getInstance("TLS");
+      sslContext.init(null, tmf.getTrustManagers(), null);
+
+      X509TrustManager trustManager = (X509TrustManager) Arrays.stream(tmf.getTrustManagers())
+        .filter(tm -> tm instanceof X509TrustManager)
+        .findFirst()
+        .orElseThrow(() -> new IllegalStateException("Не найден X509TrustManager"));
+
+      return builder
+        .sslSocketFactory(sslContext.getSocketFactory(), trustManager);
+    }
   }
 }

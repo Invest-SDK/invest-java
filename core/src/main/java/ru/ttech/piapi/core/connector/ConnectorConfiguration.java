@@ -24,6 +24,7 @@ public class ConnectorConfiguration {
   private static final String WAIT_DURATION_PROPERTY_NAME = "connection.retry.wait-duration";
   private static final String MAX_INBOUND_MESSAGE_SIZE_PROPERTY_NAME = "connection.max-message-size";
   private static final String SSL_INSECURE_PROPERTY_NAME = "connection.ssl.insecure";
+  private static final String SSL_SECURE_INTERNAL_PROPERTY_NAME = "connection.ssl.secure-internal";
   private static final String GRPC_DEBUG_PROPERTY_NAME = "grpc.debug";
   private static final String GRPC_CONTEXT_FORK_PROPERTY_NAME = "grpc.context-fork";
   private static final String MARKET_DATA_MAX_STREAMS_COUNT = "stream.market-data.max-streams-count";
@@ -41,11 +42,14 @@ public class ConnectorConfiguration {
   private static final String DEFAULT_MAX_INBOUND_MESSAGE_SIZE = "16777216";
   private static final String DEFAULT_GRPC_DEBUG = "false";
   private static final String DEFAULT_GRPC_CONTEXT_FORK = "false";
-  private static final String DEFAULT_SSL_INSECURE = "true";
+  private static final String DEFAULT_SSL_INSECURE = "false";
+  private static final String DEFAULT_SSL_SECURE_INTERNAL = "true";
   private static final String DEFAULT_MARKET_DATA_MAX_STREAMS_COUNT = "16";
   private static final String DEFAULT_MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT = "300";
   private static final String DEFAULT_INACTIVITY_TIMEOUT = "15000";
   private static final String DEFAULT_STREAM_PING_DELAY = "5000";
+  private static final String DEFAULT_SSL_SECURE_INTERNAL_JKS_LOCATION = "RussianTrustedRootCA.jks";
+  private static final String DEFAULT_SSL_SECURE_INTERNAL_JKS_PASSWORD = "RussianTrustedRootCA";
 
   private final String token;
   private final String appName;
@@ -57,6 +61,9 @@ public class ConnectorConfiguration {
   private final int maxAttempts;
   private final int waitDuration;
   private final int maxInboundMessageSize;
+  private final boolean sslSecureInternal;
+  private final String sslSecureInternalJksLocation;
+  private final String sslSecureInternalJksPassword;
   private final boolean sslInsecure;
   private final boolean grpcDebug;
   private final boolean grpcContextFork;
@@ -67,7 +74,7 @@ public class ConnectorConfiguration {
 
   private ConnectorConfiguration(
     String token, String appName, String targetUrl, String sandboxTargetUrl, boolean sandboxEnabled, int timeout,
-    int keepalive, int maxAttempts, int waitDuration, int maxInboundMessageSize, boolean sslInsecure, boolean grpcDebug,
+    int keepalive, int maxAttempts, int waitDuration, int maxInboundMessageSize, boolean sslSecureInternal, String sslSecureInternalJksLocation, String sslSecureInternalJksPassword, boolean sslInsecure, boolean grpcDebug,
     boolean grpcContextFork, int maxMarketDataStreamsCount, int maxMarketDataSubscriptionsCount,
     int streamInactivityTimeout, int streamPingDelay
   ) {
@@ -81,6 +88,9 @@ public class ConnectorConfiguration {
     this.maxAttempts = maxAttempts;
     this.waitDuration = waitDuration;
     this.maxInboundMessageSize = maxInboundMessageSize;
+    this.sslSecureInternal = sslSecureInternal;
+    this.sslSecureInternalJksLocation = sslSecureInternalJksLocation;
+    this.sslSecureInternalJksPassword = sslSecureInternalJksPassword;
     this.sslInsecure = sslInsecure;
     this.grpcDebug = grpcDebug;
     this.grpcContextFork = grpcContextFork;
@@ -113,6 +123,7 @@ public class ConnectorConfiguration {
     int waitDuration = Integer.parseInt(properties.getProperty(WAIT_DURATION_PROPERTY_NAME, DEFAULT_WAIT_DURATION));
     int maxInboundMessageSize = Integer.parseInt(
       properties.getProperty(MAX_INBOUND_MESSAGE_SIZE_PROPERTY_NAME, DEFAULT_MAX_INBOUND_MESSAGE_SIZE));
+    boolean sslSecureInternal = Boolean.parseBoolean(properties.getProperty(SSL_SECURE_INTERNAL_PROPERTY_NAME, DEFAULT_SSL_SECURE_INTERNAL));
     boolean sslInsecure = Boolean.parseBoolean(
       properties.getProperty(SSL_INSECURE_PROPERTY_NAME, DEFAULT_SSL_INSECURE));
     boolean grpcDebug = Boolean.parseBoolean(properties.getProperty(GRPC_DEBUG_PROPERTY_NAME, DEFAULT_GRPC_DEBUG));
@@ -128,9 +139,9 @@ public class ConnectorConfiguration {
       properties.getProperty(STREAM_PING_DELAY_PROPERTY_NAME, DEFAULT_STREAM_PING_DELAY));
     return new ConnectorConfiguration(
       token, appName, targetUrl, sandboxTargetUrl, sandboxEnabled, timeout, keepalive, maxAttempts, waitDuration,
-      maxInboundMessageSize, sslInsecure, grpcDebug, grpcContextFork, maxMarketDataStreamsCount,
-      maxMarketDataSubscriptionsCount, inactivityTimeout, streamPingDelay
-    );
+      maxInboundMessageSize, sslSecureInternal, DEFAULT_SSL_SECURE_INTERNAL_JKS_LOCATION, DEFAULT_SSL_SECURE_INTERNAL_JKS_PASSWORD, sslInsecure,
+      grpcDebug, grpcContextFork, maxMarketDataStreamsCount,
+      maxMarketDataSubscriptionsCount, inactivityTimeout, streamPingDelay);
   }
 
   /**
