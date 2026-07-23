@@ -118,10 +118,15 @@ public class CandleStrategy {
 
   private Optional<CandleInstrument> findCandleInstrument(CandleWrapper candle) {
     return configuration.getBarSeriesMap().keySet().stream()
-      .filter(instrument ->
-        instrument.getInstrumentId().equals(candle.getInstrumentUid())
-          && instrument.getInterval() == candle.getInterval())
+      .filter(instrument -> matchesCandle(instrument, candle) && instrument.getInterval() == candle.getInterval())
       .findAny();
+  }
+
+  static boolean matchesCandle(CandleInstrument instrument, CandleWrapper candle) {
+    String instrumentId = instrument.getInstrumentId();
+    return instrumentId.equals(candle.getInstrumentUid())
+      || instrumentId.equals(candle.getFigi())
+      || instrumentId.equals(candle.getTicker() + "_" + candle.getClassCode());
   }
 
   private CompletableFuture<Void> produceWarmupAsync() {

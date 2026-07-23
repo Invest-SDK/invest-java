@@ -104,6 +104,8 @@ public class MarketDataWrapperTest extends GrpcStubBaseTest {
       .atMost(Duration.ofSeconds(2))
       .untilAsserted(() -> assertThat(receivedUpdates.get()).isEqualTo(6));
     verifyThat(MarketDataStreamServiceGrpc.getMarketDataStreamMethod(), times(3));
+    wrapper.disconnect();
+    executorService.shutdownNow();
   }
 
   @SneakyThrows
@@ -171,5 +173,7 @@ public class MarketDataWrapperTest extends GrpcStubBaseTest {
     Awaitility.await().pollDelay(Duration.ofSeconds(1))
         .untilAsserted(() -> assertThat(receivedUpdates.get()).isEqualTo(0));
     verifyThat(MarketDataStreamServiceGrpc.getMarketDataStreamMethod());
+    wrapper.disconnect();
+    executorService.shutdownNow();
   }
 }

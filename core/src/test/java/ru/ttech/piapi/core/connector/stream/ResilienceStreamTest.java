@@ -69,6 +69,8 @@ public class ResilienceStreamTest extends GrpcStubBaseTest {
     latch.await();
     assertThat(receivedUpdates.get()).isEqualTo(4);
     verifyThat(OrdersStreamServiceGrpc.getOrderStateStreamMethod(), times(3));
+    wrapper.disconnect();
+    executorService.shutdownNow();
   }
 
 
@@ -99,5 +101,7 @@ public class ResilienceStreamTest extends GrpcStubBaseTest {
     Thread.sleep(5000);
     assertThat(receivedUpdates.get()).isZero();
     verifyThat(OrdersStreamServiceGrpc.getOrderStateStreamMethod(), times(1));
+    wrapper.disconnect();
+    executorService.shutdownNow();
   }
 }

@@ -30,7 +30,7 @@
         <url>https://opensource.tbank.ru/invest/invest-java/-/tree/master</url>
         <connection>scm:git:ssh://git@opensource.tbank.ru/invest/invest-java.git</connection>
         <developerConnection>scm:git:ssh://git@opensource.tbank.ru/invest/invest-java.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>v1.49.3</tag>
     </scm>
 
     <properties>
@@ -58,7 +58,7 @@
 
         <!--   test dependencies versions   -->
         <org.junit.jupiter.version>5.14.2</org.junit.jupiter.version>
-        <org.testcontainers.version>1.20.6</org.testcontainers.version>
+        <org.testcontainers.version>1.21.4</org.testcontainers.version>
         <org.awaitility.version>4.3.0</org.awaitility.version>
         <org.assertj.version>3.27.6</org.assertj.version>
         <grpc-mock.version>0.16.0</grpc-mock.version>
@@ -89,7 +89,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.1.0</version>
+                        <version>3.2.8</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -192,7 +192,7 @@
                 <configuration>
                     <tagNameFormat>v@{project.version}</tagNameFormat>
                     <autoVersionSubmodules>true</autoVersionSubmodules>
-                    <releaseProfiles>releases</releaseProfiles>
+                    <releaseProfiles>central</releaseProfiles>
                 </configuration>
             </plugin>
             <plugin>
