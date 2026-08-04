@@ -1,7 +1,5 @@
 [![Version](https://img.shields.io/maven-central/v/ru.tinkoff.piapi/java-sdk?logo=apache-maven&style=flat-square)](https://search.maven.org/artifact/ru.tinkoff.piapi/java-sdk)
-[![Release](https://jitpack.io/v/RussianInvestments/invest-api-java-sdk.svg?style=flat-square)](https://jitpack.io/#RussianInvestments/invest-api-java-sdk)
-[![License](https://img.shields.io/github/license/RussianInvestments/invest-api-java-sdk?style=flat-square&logo=apache)](https://www.apache.org/licenses/LICENSE-2.0)
-[![GitHub Actions Status](<https://img.shields.io/github/workflow/status/RussianInvestments/invest-api-java-sdk/Java CI with Maven?logo=GitHub&style=flat-square>)](https://github.com/RussianInvestments/invest-api-java-sdk/actions?query=workflow%3A"Java+CI+with+Maven")
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square&logo=apache)](https://www.apache.org/licenses/LICENSE-2.0)
 
 # Java SDK для T-Invest API
 
@@ -66,6 +64,6 @@ implementation 'com.google.cloud:native-image-support:0.14.1'
 
 ## У меня есть вопрос по работе API
 
-* [Репозиторий](https://github.com/RussianInvestments/investAPI) с контрактами
+* [Репозиторий](https://opensource.tbank.ru/invest/invest-contracts) с контрактами
 * По возникающим вопросам можно обратиться в [поддержку](https://developer.tbank.ru/invest/support)
 * Документация по API Т-Инвестиций находится [здесь](https://developer.tbank.ru/invest/intro/intro)

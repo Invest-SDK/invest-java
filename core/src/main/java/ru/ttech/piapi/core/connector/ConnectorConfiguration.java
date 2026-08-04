@@ -29,6 +29,8 @@ public class ConnectorConfiguration {
   private static final String GRPC_CONTEXT_FORK_PROPERTY_NAME = "grpc.context-fork";
   private static final String MARKET_DATA_MAX_STREAMS_COUNT = "stream.market-data.max-streams-count";
   private static final String MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT = "stream.market-data.max-subscriptions-count";
+  private static final String MARKET_DATA_MAX_RESUBSCRIPTION_ATTEMPTS_PROPERTY_NAME =
+    "stream.market-data.max-resubscription-attempts";
   private static final String INACTIVITY_TIMEOUT_PROPERTY_NAME = "stream.inactivity-timeout";
   private static final String STREAM_PING_DELAY_PROPERTY_NAME = "stream.ping-delay";
   private static final String DEFAULT_TARGET = "invest-public-api.tbank.ru:443";
@@ -46,6 +48,7 @@ public class ConnectorConfiguration {
   private static final String DEFAULT_SSL_SECURE_INTERNAL = "true";
   private static final String DEFAULT_MARKET_DATA_MAX_STREAMS_COUNT = "16";
   private static final String DEFAULT_MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT = "300";
+  private static final String DEFAULT_MARKET_DATA_MAX_RESUBSCRIPTION_ATTEMPTS = "3";
   private static final String DEFAULT_INACTIVITY_TIMEOUT = "15000";
   private static final String DEFAULT_STREAM_PING_DELAY = "5000";
   private static final String DEFAULT_SSL_SECURE_INTERNAL_JKS_LOCATION = "RussianTrustedRootCA.jks";
@@ -69,6 +72,7 @@ public class ConnectorConfiguration {
   private final boolean grpcContextFork;
   private final int maxMarketDataStreamsCount;
   private final int maxMarketDataSubscriptionsCount;
+  private final int maxMarketDataResubscriptionAttempts;
   private final int streamInactivityTimeout;
   private final int streamPingDelay;
 
@@ -76,7 +80,7 @@ public class ConnectorConfiguration {
     String token, String appName, String targetUrl, String sandboxTargetUrl, boolean sandboxEnabled, int timeout,
     int keepalive, int maxAttempts, int waitDuration, int maxInboundMessageSize, boolean sslSecureInternal, String sslSecureInternalJksLocation, String sslSecureInternalJksPassword, boolean sslInsecure, boolean grpcDebug,
     boolean grpcContextFork, int maxMarketDataStreamsCount, int maxMarketDataSubscriptionsCount,
-    int streamInactivityTimeout, int streamPingDelay
+    int maxMarketDataResubscriptionAttempts, int streamInactivityTimeout, int streamPingDelay
   ) {
     this.token = token;
     this.appName = appName;
@@ -96,6 +100,7 @@ public class ConnectorConfiguration {
     this.grpcContextFork = grpcContextFork;
     this.maxMarketDataStreamsCount = maxMarketDataStreamsCount;
     this.maxMarketDataSubscriptionsCount = maxMarketDataSubscriptionsCount;
+    this.maxMarketDataResubscriptionAttempts = maxMarketDataResubscriptionAttempts;
     this.streamInactivityTimeout = streamInactivityTimeout;
     this.streamPingDelay = streamPingDelay;
   }
@@ -133,6 +138,9 @@ public class ConnectorConfiguration {
       properties.getProperty(MARKET_DATA_MAX_STREAMS_COUNT, DEFAULT_MARKET_DATA_MAX_STREAMS_COUNT));
     int maxMarketDataSubscriptionsCount = Integer.parseInt(
       properties.getProperty(MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT, DEFAULT_MARKET_DATA_MAX_SUBSCRIPTIONS_COUNT));
+    int maxMarketDataResubscriptionAttempts = Integer.parseInt(
+      properties.getProperty(
+        MARKET_DATA_MAX_RESUBSCRIPTION_ATTEMPTS_PROPERTY_NAME, DEFAULT_MARKET_DATA_MAX_RESUBSCRIPTION_ATTEMPTS));
     int inactivityTimeout = Integer.parseInt(
       properties.getProperty(INACTIVITY_TIMEOUT_PROPERTY_NAME, DEFAULT_INACTIVITY_TIMEOUT));
     int streamPingDelay = Integer.parseInt(
@@ -141,7 +149,7 @@ public class ConnectorConfiguration {
       token, appName, targetUrl, sandboxTargetUrl, sandboxEnabled, timeout, keepalive, maxAttempts, waitDuration,
       maxInboundMessageSize, sslSecureInternal, DEFAULT_SSL_SECURE_INTERNAL_JKS_LOCATION, DEFAULT_SSL_SECURE_INTERNAL_JKS_PASSWORD, sslInsecure,
       grpcDebug, grpcContextFork, maxMarketDataStreamsCount,
-      maxMarketDataSubscriptionsCount, inactivityTimeout, streamPingDelay);
+      maxMarketDataSubscriptionsCount, maxMarketDataResubscriptionAttempts, inactivityTimeout, streamPingDelay);
   }
 
   /**

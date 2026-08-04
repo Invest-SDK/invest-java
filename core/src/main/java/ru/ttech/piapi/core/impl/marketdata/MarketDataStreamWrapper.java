@@ -17,6 +17,7 @@ import ru.ttech.piapi.core.impl.marketdata.subscription.Instrument;
 import ru.ttech.piapi.core.impl.marketdata.subscription.MarketDataSubscriptionResult;
 import ru.ttech.piapi.core.impl.marketdata.subscription.RequestAction;
 import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionEntry;
+import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionStatus;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataRequestUtil;
 import ru.ttech.piapi.core.impl.marketdata.util.MarketDataResponseUtil;
 
@@ -61,11 +62,14 @@ public class MarketDataStreamWrapper {
     MarketDataResponseType.TRADING_STATUS, ConcurrentHashMap.newKeySet()
   );
   protected final AtomicReference<List<MarketDataRequest>> requestsRef = new AtomicReference<>(List.empty());
+  protected final AtomicReference<List<MarketDataRequest>> pendingRetryRequestsRef = new AtomicReference<>(List.empty());
+  protected final Map<MarketDataRequest, Integer> resubscriptionAttempts = new ConcurrentHashMap<>();
   protected final AtomicReference<ScheduledFuture<?>> healthCheckFutureRef = new AtomicReference<>(null);
   protected final AtomicReference<CompletableFuture<MarketDataSubscriptionResult>> lastTask = new AtomicReference<>();
   protected final AtomicBoolean isResubscribing = new AtomicBoolean(false);
   protected final int pingDelay;
   protected final int inactivityTimeout;
+  protected final int maxResubscriptionAttempts;
   protected final BidirectionalStreamWrapper<
     MarketDataStreamServiceGrpc.MarketDataStreamServiceStub,
     MarketDataRequest,
@@ -88,6 +92,8 @@ public class MarketDataStreamWrapper {
     this.executorService = configuration.getExecutorService();
     this.inactivityTimeout = streamFactory.getServiceStubFactory().getConfiguration().getStreamInactivityTimeout();
     this.pingDelay = streamFactory.getServiceStubFactory().getConfiguration().getStreamPingDelay();
+    this.maxResubscriptionAttempts =
+      streamFactory.getServiceStubFactory().getConfiguration().getMaxMarketDataResubscriptionAttempts();
     this.lastTask.set(CompletableFuture.completedFuture(null));
   }
 
@@ -100,6 +106,8 @@ public class MarketDataStreamWrapper {
       healthCheckFutureRef.set(null);
     }
     requestsRef.updateAndGet(requests -> List.empty());
+    pendingRetryRequestsRef.set(List.empty());
+    resubscriptionAttempts.clear();
     subscriptionsMap.values().forEach(Set::clear);
     updateSubscriptionsCount();
     disconnectWrapper();
@@ -149,16 +157,26 @@ public class MarketDataStreamWrapper {
     MarketDataResponseType responseType,
     Set<Instrument> instruments
   ) {
+    long deadline = System.currentTimeMillis() + inactivityTimeout;
     try {
-      var subscriptionResult = subscriptionResultsQueue.poll(inactivityTimeout, TimeUnit.MILLISECONDS);
-      if (subscriptionResult == null
-        || subscriptionResult.getResponseType() != responseType
-        || !checkSubscribedInstruments(subscriptionResult.getSubscriptionStatusMap().keySet(), instruments)
-      ) {
-        logger.error("Unexpected subscription result in wrapper {}: {}", uuid, subscriptionResult);
-        throw new IllegalStateException("Wrong subscription result!");
+      while (true) {
+        long remainingTime = deadline - System.currentTimeMillis();
+        if (remainingTime <= 0) {
+          logger.error("Unexpected subscription result in wrapper {}: null", uuid);
+          throw new IllegalStateException("Wrong subscription result!");
+        }
+        var subscriptionResult = subscriptionResultsQueue.poll(remainingTime, TimeUnit.MILLISECONDS);
+        if (subscriptionResult == null) {
+          logger.error("Unexpected subscription result in wrapper {}: null", uuid);
+          throw new IllegalStateException("Wrong subscription result!");
+        }
+        if (subscriptionResult.getResponseType() == responseType
+          && checkSubscribedInstruments(subscriptionResult.getSubscriptionStatusMap().keySet(), instruments)
+        ) {
+          return subscriptionResult;
+        }
+        logger.debug("Discarding stale subscription result in wrapper {}: {}", uuid, subscriptionResult);
       }
-      return subscriptionResult;
     } catch (InterruptedException e) {
       throw new RuntimeException("Interrupted while waiting for subscription response", e);
     }
@@ -303,7 +321,8 @@ public class MarketDataStreamWrapper {
       disconnectWrapper();
       isResubscribing.set(true);
       setSubscriptionsNonActive();
-      requestsRef.get().forEach(request -> newCall(request).join());
+      resubscriptionAttempts.clear();
+      pendingRetryRequestsRef.set(attemptResubscription(requestsRef.get()));
       isResubscribing.set(false);
       lastInteractionTime.set(System.currentTimeMillis());
     }
@@ -311,6 +330,8 @@ public class MarketDataStreamWrapper {
       var subscriptionsActiveCount = subscriptionsActiveCount();
       if (subscriptionsCount.get() > 0 && subscriptionsActiveCount == subscriptionsCount.get()) {
         needToRecovery.set(false);
+        pendingRetryRequestsRef.set(List.empty());
+        resubscriptionAttempts.clear();
         onConnectListeners.forEach(
           onConnectListener -> {
             var action = OnConnectEvent.builder()
@@ -318,8 +339,47 @@ public class MarketDataStreamWrapper {
               .build();
             onConnectListener.onConnect(action);
           });
+      } else if (!timeoutExceeded && !pendingRetryRequestsRef.get().isEmpty()) {
+        logger.info("Retrying {} unconfirmed subscription request(s) in wrapper {}",
+          pendingRetryRequestsRef.get().size(), uuid);
+        isResubscribing.set(true);
+        pendingRetryRequestsRef.set(attemptResubscription(pendingRetryRequestsRef.get()));
+        isResubscribing.set(false);
       }
     }
+  }
+
+  /**
+   * Повторно отправляет каждый запрос из списка, пока не будет получено подтверждение. Лимит попыток
+   * ({@code maxResubscriptionAttempts}) расходуется только на явные отказы сервера (статус ошибки подписки
+   * по инструменту) - таймауты и прочие исключения (например, проблемы с DNS) лимит не тратят
+   * и запрос продолжает повторяться на следующих тиках healthCheck без ограничения по количеству
+   *
+   * @param requests запросы на подписку, ожидающие подтверждения
+   * @return запросы, которые всё ещё не подтверждены и не исчерпали лимит попыток
+   */
+  private List<MarketDataRequest> attemptResubscription(List<MarketDataRequest> requests) {
+    return requests.filter(request -> {
+      var result = newCall(request).join();
+      if (result == null) {
+        return true;
+      }
+      boolean hasRejection = result.getSubscriptionStatusMap().values().stream()
+        .anyMatch(SubscriptionStatus::isError);
+      if (!hasRejection) {
+        resubscriptionAttempts.remove(request);
+        return false;
+      }
+      int attempt = resubscriptionAttempts.merge(request, 1, Integer::sum);
+      if (attempt >= maxResubscriptionAttempts) {
+        logger.error(
+          "Giving up resubscription in wrapper {} after {} rejected attempt(s) for request: {}",
+          uuid, attempt, request);
+        resubscriptionAttempts.remove(request);
+        return false;
+      }
+      return true;
+    });
   }
 
   private long subscriptionsActiveCount() {

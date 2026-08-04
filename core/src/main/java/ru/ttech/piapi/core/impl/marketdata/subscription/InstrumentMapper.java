@@ -2,6 +2,7 @@ package ru.ttech.piapi.core.impl.marketdata.subscription;
 
 import ru.tinkoff.piapi.contract.v1.Candle;
 import ru.tinkoff.piapi.contract.v1.LastPrice;
+import ru.tinkoff.piapi.contract.v1.OpenInterest;
 import ru.tinkoff.piapi.contract.v1.OrderBook;
 import ru.tinkoff.piapi.contract.v1.Trade;
 import ru.tinkoff.piapi.contract.v1.TradingStatus;
@@ -52,6 +53,13 @@ public class InstrumentMapper {
       Instrument.IdType.INSTRUMENT_UID, tradingStatus.getInstrumentUid(),
       Instrument.IdType.TICKER_CLASSCODE, tradingStatus.getTicker() + "_" + tradingStatus.getClassCode(),
       Instrument.IdType.FIGI, tradingStatus.getFigi()
+    ));
+  }
+
+  public static Instrument map(OpenInterest openInterest) {
+    return new Instrument(Map.of(
+      Instrument.IdType.INSTRUMENT_UID, openInterest.getInstrumentUid(),
+      Instrument.IdType.TICKER_CLASSCODE, openInterest.getTicker() + "_" + openInterest.getClassCode()
     ));
   }
 

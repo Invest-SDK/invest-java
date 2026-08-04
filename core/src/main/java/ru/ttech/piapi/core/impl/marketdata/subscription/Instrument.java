@@ -140,10 +140,16 @@ public class Instrument {
     if (instrument == null) {
       return false;
     }
-    return instrumentId.getIds().containsValue(instrument.getInstrumentId().id())
+    return hasCommonId(instrument)
       && instrument.getSubscriptionInterval() == subscriptionInterval
       && instrument.getOrderBookType() == orderBookType
       && instrument.getDepth() == depth;
+  }
+
+  private boolean hasCommonId(Instrument other) {
+    var otherValues = other.getInstrumentId().getIds().values();
+    return instrumentId.getIds().values().stream()
+      .anyMatch(otherValues::contains);
   }
 
   @Getter

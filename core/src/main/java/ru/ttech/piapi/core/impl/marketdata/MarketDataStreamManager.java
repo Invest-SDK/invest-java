@@ -14,6 +14,7 @@ import ru.ttech.piapi.core.connector.streaming.listeners.OnConnectListener;
 import ru.ttech.piapi.core.impl.wrapper.OnConnectEvent;
 import ru.ttech.piapi.core.impl.marketdata.subscription.CandleSubscriptionSpec;
 import ru.ttech.piapi.core.impl.marketdata.subscription.Instrument;
+import ru.ttech.piapi.core.impl.marketdata.subscription.InstrumentMapper;
 import ru.ttech.piapi.core.impl.marketdata.subscription.MarketDataSubscriptionResult;
 import ru.ttech.piapi.core.impl.marketdata.subscription.RequestAction;
 import ru.ttech.piapi.core.impl.marketdata.subscription.SubscriptionEntry;
@@ -115,7 +116,10 @@ public class MarketDataStreamManager {
       .collect(Collectors.toUnmodifiableSet());
     subscribe(MarketDataResponseType.CANDLE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(context.getOnCandleListeners(), onCandleListener))
+        .ifPresent(result -> addWrapperListener(
+          context.getOnCandleListeners(),
+          filterByInstruments(instruments, candle -> InstrumentMapper.map(candle.getOriginal()), onCandleListener)
+        ))
       );
   }
 
@@ -161,7 +165,10 @@ public class MarketDataStreamManager {
       .collect(Collectors.toUnmodifiableSet());
     subscribe(MarketDataResponseType.LAST_PRICE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(context.getOnLastPriceListeners(), onLastPriceListener))
+        .ifPresent(result -> addWrapperListener(
+          context.getOnLastPriceListeners(),
+          filterByInstruments(instruments, lastPrice -> InstrumentMapper.map(lastPrice.getOriginal()), onLastPriceListener)
+        ))
       );
   }
 
@@ -211,8 +218,14 @@ public class MarketDataStreamManager {
     subscribe(MarketDataResponseType.TRADE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
         .ifPresent(result -> {
-          addWrapperListener(context.getOnTradeListeners(), onTradeListener);
-          addWrapperListener(context.getOnOpenInterestListeners(), onOpenInterestListener);
+          addWrapperListener(
+            context.getOnTradeListeners(),
+            filterByInstruments(instruments, trade -> InstrumentMapper.map(trade.getOriginal()), onTradeListener)
+          );
+          addWrapperListener(
+            context.getOnOpenInterestListeners(),
+            filterByInstruments(instruments, openInterest -> InstrumentMapper.map(openInterest.getOriginal()), onOpenInterestListener)
+          );
         })
       );
   }
@@ -254,7 +267,10 @@ public class MarketDataStreamManager {
       .collect(Collectors.toUnmodifiableSet());
     subscribe(MarketDataResponseType.ORDER_BOOK, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(context.getOnOrderBookListeners(), onOrderBookListener))
+        .ifPresent(result -> addWrapperListener(
+          context.getOnOrderBookListeners(),
+          filterByInstruments(instruments, orderBook -> InstrumentMapper.map(orderBook.getOriginal()), onOrderBookListener)
+        ))
       );
   }
 
@@ -293,7 +309,10 @@ public class MarketDataStreamManager {
       .collect(Collectors.toUnmodifiableSet());
     subscribe(MarketDataResponseType.TRADING_STATUS, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(context.getOnTradingStatusListeners(), onTradingStatusListener))
+        .ifPresent(result -> addWrapperListener(
+          context.getOnTradingStatusListeners(),
+          filterByInstruments(instruments, tradingStatus -> InstrumentMapper.map(tradingStatus.getOriginal()), onTradingStatusListener)
+        ))
       );
   }
 
@@ -315,6 +334,24 @@ public class MarketDataStreamManager {
     if (!listeners.contains(listener)) {
       listeners.add(listener);
     }
+  }
+
+  /**
+   * Оборачивает листенер так, чтобы он вызывался только для инструментов, переданных в конкретный вызов подписки.
+   * Без этой обёртки листенер добавляется в общий на весь менеджер список и получал бы обновления
+   * по всем когда-либо подписанным инструментам, а не только по своим
+   */
+  protected <T> OnNextListener<T> filterByInstruments(
+    Set<Instrument> instruments,
+    Function<T, Instrument> instrumentExtractor,
+    OnNextListener<T> listener
+  ) {
+    return wrapper -> {
+      var wrapperInstrument = instrumentExtractor.apply(wrapper);
+      if (instruments.stream().anyMatch(instrument -> instrument.subscriptionEquals(wrapperInstrument))) {
+        listener.onNext(wrapper);
+      }
+    };
   }
 
   /**

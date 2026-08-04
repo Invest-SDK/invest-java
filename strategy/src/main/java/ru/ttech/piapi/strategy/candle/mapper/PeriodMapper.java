@@ -32,7 +32,7 @@ public class PeriodMapper {
   }
 
   /**
-   * <a href=https://russianinvestments.github.io/investAPI/load_history/>
+   * <a href=https://developer.tbank.ru/invest/intro/intro/load_history/>
    * О лимитах на загрузку свечей
    * </a>
    */

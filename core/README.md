@@ -108,6 +108,7 @@ sandbox.target=sandbox-invest-public-api.tbank.ru:443
 sandbox.enabled=false
 stream.market-data.max-streams-count=16
 stream.market-data.max-subscriptions-count=300
+stream.market-data.max-resubscription-attempts=3
 stream.inactivity-timeout=10000
 stream.ping-delay=5000
 ```
@@ -130,6 +131,8 @@ stream.ping-delay=5000
   (используется в `MarketDataStreamManager`)
 * `stream.market-data.max-subscriptions-count` - максимальное количество подписок на рыночные данные в одном стриме
   (используется в [MarketDataStreamManager](#marketdatastreammanager))
+* `stream.market-data.max-resubscription-attempts` - максимальное количество попыток повторной подписки на
+  инструмент после разрыва соединения в `MarketDataStreamWrapper`, прежде чем подписка будет считаться неудавшейся
 * `stream.inactivity-timeout` - таймаут отсутствия сообщений в стриме в миллисекундах
 *  `stream.ping-delay` - интервал пинга в стриме в миллисекундах
 
@@ -551,7 +554,10 @@ gRPC объектами. Это нужно для удобной работы с
 
 Для повышения надёжности при работе с `MarketDataStream` был создан `MarketDataStreamWrapper`. Он инициирует
 автоматическое переподключение стрима и повторную отправку последнего успешного запроса на подписку, если в стриме
-отсуствовала активность в течение заданного в параметрах `stream.inactivity-timeout`.
+отсуствовала активность в течение заданного в параметрах `stream.inactivity-timeout`. Если после переподключения
+подтверждение подписки на какой-либо инструмент не приходит, запрос повторяется на каждой последующей проверке
+состояния соединения, но не более `stream.market-data.max-resubscription-attempts` раз (по умолчанию 3) - после
+этого повторные попытки для данного запроса прекращаются.
 
 <details>
 <summary>Пример работы с MarketDataStreamWrapper</summary>

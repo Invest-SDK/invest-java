@@ -138,6 +138,10 @@ public class ConnectorProperties {
        * Максимальное число одновременных подписок в одном стриме
        */
       private Integer maxSubscriptionsCount;
+      /**
+       * Максимальное число попыток повторной подписки на инструмент после разрыва соединения
+       */
+      private Integer maxResubscriptionAttempts;
     }
   }
 
@@ -172,6 +176,8 @@ public class ConnectorProperties {
       .ifPresent(maxStreamsCount -> properties.setProperty("stream.market-data.max-streams-count", String.valueOf(maxStreamsCount)));
     Optional.ofNullable(stream.getMarketData().getMaxSubscriptionsCount())
       .ifPresent(maxSubscriptionsCount -> properties.setProperty("stream.market-data.max-subscriptions-count", String.valueOf(maxSubscriptionsCount)));
+    Optional.ofNullable(stream.getMarketData().getMaxResubscriptionAttempts())
+      .ifPresent(maxResubscriptionAttempts -> properties.setProperty("stream.market-data.max-resubscription-attempts", String.valueOf(maxResubscriptionAttempts)));
     Optional.ofNullable(stream.getPingDelay())
       .ifPresent(pingDelay -> properties.setProperty("stream.ping-delay", String.valueOf(pingDelay)));
     Optional.ofNullable(stream.getInactivityTimeout())
