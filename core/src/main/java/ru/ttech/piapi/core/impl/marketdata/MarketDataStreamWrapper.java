@@ -398,20 +398,8 @@ public class MarketDataStreamWrapper {
     if (subscribedInstruments.size() != requestedInstruments.size()) {
       return false;
     }
-
-    var subscriptionIndex = subscribedInstruments.stream()
-      .flatMap(instr -> instr.getInstrumentId().getIds().values().stream()
-        .map(idValue -> Map.entry(idValue, instr)))
-      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
-
-    long matchedCount = requestedInstruments.stream()
-      .flatMap(req -> req.getInstrumentId().getIds().values().stream())
-      .map(subscriptionIndex::get)
-      .filter(Objects::nonNull)
-      .distinct()
-      .count();
-
-    return matchedCount == subscribedInstruments.size();
+    return requestedInstruments.stream()
+      .allMatch(req -> subscribedInstruments.stream().anyMatch(req::subscriptionEquals));
   }
 
   protected void updateLastReceiveTime(Instrument instrument, LocalDateTime lastReceiveTime) {
