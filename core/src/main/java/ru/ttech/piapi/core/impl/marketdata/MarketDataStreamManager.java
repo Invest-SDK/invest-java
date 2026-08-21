@@ -104,6 +104,16 @@ public class MarketDataStreamManager {
     CandleSubscriptionSpec subscriptionSpecs,
     OnNextListener<CandleWrapper> onCandleListener
   ) {
+    var wrappedListener = filterByInstruments(
+      instruments, candle -> InstrumentMapper.map(candle.getOriginal()), onCandleListener
+    );
+    var filteredInstruments = instruments.stream()
+      .filter(instrument -> !isSubscribedCandles(instrument))
+      .collect(Collectors.toUnmodifiableSet());
+    if (filteredInstruments.isEmpty()) {
+      addWrapperListener(context.getOnCandleListeners(), wrappedListener);
+      return;
+    }
     Function<List<Instrument>, MarketDataRequest> requestBuilder = instrumentsSublist ->
       MarketDataRequestBuilder.buildCandlesRequest(
         instrumentsSublist,
@@ -111,15 +121,9 @@ public class MarketDataStreamManager {
         subscriptionSpecs.isWaitingClose(),
         SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE
       );
-    var filteredInstruments = instruments.stream()
-      .filter(instrument -> !isSubscribedCandles(instrument))
-      .collect(Collectors.toUnmodifiableSet());
     subscribe(MarketDataResponseType.CANDLE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(
-          context.getOnCandleListeners(),
-          filterByInstruments(instruments, candle -> InstrumentMapper.map(candle.getOriginal()), onCandleListener)
-        ))
+        .ifPresent(result -> addWrapperListener(context.getOnCandleListeners(), wrappedListener))
       );
   }
 
@@ -158,17 +162,21 @@ public class MarketDataStreamManager {
     Set<Instrument> instruments,
     OnNextListener<LastPriceWrapper> onLastPriceListener
   ) {
-    Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
-      MarketDataRequestBuilder.buildLastPricesRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
+    var wrappedListener = filterByInstrumentId(
+      instruments, lastPrice -> InstrumentMapper.map(lastPrice.getOriginal()), onLastPriceListener
+    );
     var filteredInstruments = instruments.stream()
       .filter(instrument -> !isSubscribedLastPrice(instrument))
       .collect(Collectors.toUnmodifiableSet());
+    if (filteredInstruments.isEmpty()) {
+      addWrapperListener(context.getOnLastPriceListeners(), wrappedListener);
+      return;
+    }
+    Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
+      MarketDataRequestBuilder.buildLastPricesRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
     subscribe(MarketDataResponseType.LAST_PRICE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(
-          context.getOnLastPriceListeners(),
-          filterByInstruments(instruments, lastPrice -> InstrumentMapper.map(lastPrice.getOriginal()), onLastPriceListener)
-        ))
+        .ifPresent(result -> addWrapperListener(context.getOnLastPriceListeners(), wrappedListener))
       );
   }
 
@@ -209,23 +217,28 @@ public class MarketDataStreamManager {
     OnNextListener<TradeWrapper> onTradeListener,
     OnNextListener<OpenInterestWrapper> onOpenInterestListener
   ) {
-    Function<List<Instrument>, MarketDataRequest> requestBuilder = instrumentsSublist ->
-      MarketDataRequestBuilder.buildTradesRequest(instrumentsSublist, tradeSourceType,
-        withOpenInterest, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
+    var wrappedTradeListener = filterByInstrumentId(
+      instruments, trade -> InstrumentMapper.map(trade.getOriginal()), onTradeListener
+    );
+    var wrappedOpenInterestListener = filterByInstrumentId(
+      instruments, openInterest -> InstrumentMapper.map(openInterest.getOriginal()), onOpenInterestListener
+    );
     var filteredInstruments = instruments.stream()
       .filter(instrument -> !isSubscribedTrades(instrument))
       .collect(Collectors.toUnmodifiableSet());
+    if (filteredInstruments.isEmpty()) {
+      addWrapperListener(context.getOnTradeListeners(), wrappedTradeListener);
+      addWrapperListener(context.getOnOpenInterestListeners(), wrappedOpenInterestListener);
+      return;
+    }
+    Function<List<Instrument>, MarketDataRequest> requestBuilder = instrumentsSublist ->
+      MarketDataRequestBuilder.buildTradesRequest(instrumentsSublist, tradeSourceType,
+        withOpenInterest, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
     subscribe(MarketDataResponseType.TRADE, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
         .ifPresent(result -> {
-          addWrapperListener(
-            context.getOnTradeListeners(),
-            filterByInstruments(instruments, trade -> InstrumentMapper.map(trade.getOriginal()), onTradeListener)
-          );
-          addWrapperListener(
-            context.getOnOpenInterestListeners(),
-            filterByInstruments(instruments, openInterest -> InstrumentMapper.map(openInterest.getOriginal()), onOpenInterestListener)
-          );
+          addWrapperListener(context.getOnTradeListeners(), wrappedTradeListener);
+          addWrapperListener(context.getOnOpenInterestListeners(), wrappedOpenInterestListener);
         })
       );
   }
@@ -260,17 +273,21 @@ public class MarketDataStreamManager {
     Set<Instrument> instruments,
     OnNextListener<OrderBookWrapper> onOrderBookListener
   ) {
-    Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
-      MarketDataRequestBuilder.buildOrderBooksRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
+    var wrappedListener = filterByInstruments(
+      instruments, orderBook -> InstrumentMapper.map(orderBook.getOriginal()), onOrderBookListener
+    );
     var filteredInstruments = instruments.stream()
       .filter(instrument -> !isSubscribedOrderBook(instrument))
       .collect(Collectors.toUnmodifiableSet());
+    if (filteredInstruments.isEmpty()) {
+      addWrapperListener(context.getOnOrderBookListeners(), wrappedListener);
+      return;
+    }
+    Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
+      MarketDataRequestBuilder.buildOrderBooksRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
     subscribe(MarketDataResponseType.ORDER_BOOK, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(
-          context.getOnOrderBookListeners(),
-          filterByInstruments(instruments, orderBook -> InstrumentMapper.map(orderBook.getOriginal()), onOrderBookListener)
-        ))
+        .ifPresent(result -> addWrapperListener(context.getOnOrderBookListeners(), wrappedListener))
       );
   }
 
@@ -302,17 +319,21 @@ public class MarketDataStreamManager {
     Set<Instrument> instruments,
     OnNextListener<TradingStatusWrapper> onTradingStatusListener
   ) {
-    Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
-      MarketDataRequestBuilder.buildTradingStatusesRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
+    var wrappedListener = filterByInstrumentId(
+      instruments, tradingStatus -> InstrumentMapper.map(tradingStatus.getOriginal()), onTradingStatusListener
+    );
     var filteredInstruments = instruments.stream()
       .filter(instrument -> !isSubscribedTradingStatuses(instrument))
       .collect(Collectors.toUnmodifiableSet());
+    if (filteredInstruments.isEmpty()) {
+      addWrapperListener(context.getOnTradingStatusListeners(), wrappedListener);
+      return;
+    }
+    Function<List<Instrument>, MarketDataRequest> requestBuilder = sublist ->
+      MarketDataRequestBuilder.buildTradingStatusesRequest(sublist, SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE);
     subscribe(MarketDataResponseType.TRADING_STATUS, filteredInstruments, requestBuilder)
       .whenComplete((subscriptionResult, __) -> Optional.ofNullable(subscriptionResult)
-        .ifPresent(result -> addWrapperListener(
-          context.getOnTradingStatusListeners(),
-          filterByInstruments(instruments, tradingStatus -> InstrumentMapper.map(tradingStatus.getOriginal()), onTradingStatusListener)
-        ))
+        .ifPresent(result -> addWrapperListener(context.getOnTradingStatusListeners(), wrappedListener))
       );
   }
 
@@ -349,6 +370,19 @@ public class MarketDataStreamManager {
     return wrapper -> {
       var wrapperInstrument = instrumentExtractor.apply(wrapper);
       if (instruments.stream().anyMatch(instrument -> instrument.subscriptionEquals(wrapperInstrument))) {
+        listener.onNext(wrapper);
+      }
+    };
+  }
+
+  protected <T> OnNextListener<T> filterByInstrumentId(
+    Set<Instrument> instruments,
+    Function<T, Instrument> instrumentExtractor,
+    OnNextListener<T> listener
+  ) {
+    return wrapper -> {
+      var wrapperInstrument = instrumentExtractor.apply(wrapper);
+      if (instruments.stream().anyMatch(instrument -> instrument.sharesIdWith(wrapperInstrument))) {
         listener.onNext(wrapper);
       }
     };

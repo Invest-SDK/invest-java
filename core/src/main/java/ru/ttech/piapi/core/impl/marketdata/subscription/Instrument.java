@@ -140,13 +140,16 @@ public class Instrument {
     if (instrument == null) {
       return false;
     }
-    return hasCommonId(instrument)
+    return sharesIdWith(instrument)
       && instrument.getSubscriptionInterval() == subscriptionInterval
-      && instrument.getOrderBookType() == orderBookType
+      && (orderBookType == OrderBookType.ORDERBOOK_TYPE_ALL || instrument.getOrderBookType() == orderBookType)
       && instrument.getDepth() == depth;
   }
 
-  private boolean hasCommonId(Instrument other) {
+  public boolean sharesIdWith(Instrument other) {
+    if (other == null) {
+      return false;
+    }
     var otherValues = other.getInstrumentId().getIds().values();
     return instrumentId.getIds().values().stream()
       .anyMatch(otherValues::contains);
