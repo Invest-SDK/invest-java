@@ -204,6 +204,11 @@
                     <publishingServerId>central</publishingServerId>
                     <autoPublish>false</autoPublish>
                     <deploymentName>${project.artifactId}-${project.version}</deploymentName>
+                    <excludeArtifacts>
+                        <excludeArtifact>java-sdk-example</excludeArtifact>
+                        <excludeArtifact>java-sdk-basic-example</excludeArtifact>
+                        <excludeArtifact>java-sdk-spring-boot-example</excludeArtifact>
+                    </excludeArtifacts>
                 </configuration>
             </plugin>
         </plugins>

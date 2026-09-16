@@ -16,6 +16,10 @@
         <maven.compiler.target>21</maven.compiler.target>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+        <maven.source.skip>true</maven.source.skip>
+        <gpg.skip>true</gpg.skip>
     </properties>
 
     <dependencies>
@@ -117,6 +121,15 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <configuration>
+                    <excludeArtifacts>
+                        <excludeArtifact>java-sdk-basic-example</excludeArtifact>
+                    </excludeArtifacts>
+                </configuration>
             </plugin>
         </plugins>
 
